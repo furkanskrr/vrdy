@@ -7,7 +7,7 @@ import { Platform, StatusBar } from "react-native";
  */
 export function ustEkranBoslugu(safeAreaTop: number, ekstra: number = 12): number {
   const androidStatus = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
-  const webEkstra = Platform.OS === "web" ? Math.min(ekstra, 8) : ekstra;
+  const webEkstra = Platform.OS === "web" ? Math.min(ekstra, 6) : ekstra;
   return Math.max(safeAreaTop, androidStatus) + webEkstra;
 }
 

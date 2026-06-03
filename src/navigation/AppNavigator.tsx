@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useEffect, useState } from "react";
-import { Linking, View } from "react-native";
+import { Linking, Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -116,7 +117,9 @@ function ArchiveStackNav() {
 
 function MainTabs() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { okunmamisSayisi } = useSohbetOkunmamis();
+  const webTabAlt = Platform.OS === "web" ? Math.min(insets.bottom, 6) : insets.bottom;
   const sohbetRozet =
     SOHBET_AKTIF && okunmamisSayisi > 0
       ? okunmamisSayisi > 99
@@ -130,6 +133,13 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
+          ...(Platform.OS === "web"
+            ? {
+                height: 52 + webTabAlt,
+                paddingBottom: webTabAlt,
+                paddingTop: 4,
+              }
+            : null),
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,

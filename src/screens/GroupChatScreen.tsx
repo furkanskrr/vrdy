@@ -24,7 +24,9 @@ import { playDelightFeedback } from "../lib/delight/feedback";
 import { useAuth } from "../context/AuthContext";
 import { useSohbetOkunmamis } from "../context/SohbetOkunmamisContext";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
-import { useWebKeyboardInset } from "../hooks/useWebKeyboardInset";
+import { IPHONE_PRO_MAX_GENISLIK } from "../components/WebMobileFrame";
+import { useNativeKeyboardHeight } from "../hooks/useNativeKeyboardHeight";
+import { useWebComposerLayout } from "../hooks/useWebComposerLayout";
 import { altSekmeEkranBoslugu, ustEkranBoslugu } from "../lib/safeArea";
 import type { GrupMesaji, GrupMesajiYanitOzet, TeamRole } from "../types";
 
@@ -206,6 +208,20 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       paddingHorizontal: 12,
       paddingTop: 6,
       backgroundColor: "transparent",
+    },
+    composerWebSabit: {
+      position: "fixed",
+      left: 0,
+      right: 0,
+      zIndex: 200,
+      width: "100%",
+      maxWidth: IPHONE_PRO_MAX_GENISLIK,
+      alignSelf: "center",
+      marginLeft: "auto",
+      marginRight: "auto",
+      backgroundColor: isDark ? colors.bg : chatBg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
     },
     composerPill: {
       flexDirection: "row",
@@ -611,7 +627,8 @@ const isWeb = Platform.OS === "web";
 
 export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
-  const webKlavyeBoslugu = useWebKeyboardInset();
+  const webComposer = useWebComposerLayout();
+  const nativeKlavyeYuk = useNativeKeyboardHeight();
   const { colors, isDark } = useTheme();
   const delight = useDelight();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -1376,14 +1393,81 @@ export function GroupChatScreen() {
   }
 
   const composerAltPad = altSekmeEkranBoslugu(insets.bottom);
-  const KlavyeSarici = isWeb ? View : KeyboardAvoidingView;
+  const KlavyeSarici = isWeb || Platform.OS === "android" ? View : KeyboardAvoidingView;
   const klavyeSariciProps = isWeb
     ? ({ style: styles.screen } as const)
-    : ({
-        style: styles.screen,
-        behavior: Platform.OS === "ios" ? ("padding" as const) : undefined,
-        keyboardVerticalOffset: 0,
-      } as const);
+    : Platform.OS === "android"
+      ? ({ style: styles.screen } as const)
+      : ({
+          style: styles.screen,
+          behavior: "padding" as const,
+          keyboardVerticalOffset: 2,
+        } as const);
+
+  const composerPanel = (
+    <>
+      {hata ? <Text style={styles.hata}>{hata}</Text> : null}
+      {yanitHedef ? (
+        <View style={styles.yanitBant}>
+          <View style={styles.yanitBantMetin}>
+            <Text style={styles.yanitBantBaslik}>Yanıt · {yanitHedef.sender_ad}</Text>
+            <Text style={styles.yanitBantOz} numberOfLines={1}>
+              {alintiOzetKisalt(yanitHedef.body, 72)}
+            </Text>
+          </View>
+          <Pressable
+            style={styles.yanitBantKapat}
+            onPress={() => setYanitHedef(null)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Yanıtı iptal et"
+          >
+            <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
+      ) : null}
+      <View style={styles.composerPill}>
+        <TextInput
+          style={styles.input}
+          placeholder="Mesaj yazın…"
+          placeholderTextColor={colors.textMuted}
+          value={taslak}
+          onChangeText={setTaslak}
+          multiline
+          maxLength={MESAJ_UZUNLUK_MAX}
+          editable={!gonderiliyor && !!groupId}
+          textAlignVertical="center"
+          underlineColorAndroid="transparent"
+          onFocus={() => {
+            if (isWeb) return;
+            requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+          }}
+        />
+        <Pressable
+          style={({ pressed }) => [
+            styles.gonderBtn,
+            (!taslak.trim() || gonderiliyor) && styles.gonderBtnDisabled,
+            pressed && taslak.trim() && !gonderiliyor ? { opacity: 0.88 } : null,
+          ]}
+          onPress={() => void gonder()}
+          disabled={!taslak.trim() || gonderiliyor}
+          accessibilityRole="button"
+          accessibilityLabel="Gönder"
+        >
+          {gonderiliyor ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Ionicons name="arrow-up" size={16} color="#fff" />
+          )}
+        </Pressable>
+      </View>
+      {kalanKarakter < 80 ? (
+        <View style={styles.sayacSatir}>
+          <Text style={[styles.sayac, styles.sayacUyari]}>Kalan {kalanKarakter} karakter</Text>
+        </View>
+      ) : null}
+    </>
+  );
 
   return (
     <KlavyeSarici {...klavyeSariciProps}>
@@ -1426,7 +1510,12 @@ export function GroupChatScreen() {
           </View>
         </View>
 
-        <View style={styles.chatPane}>
+        <View
+          style={[
+            styles.chatPane,
+            isWeb ? { paddingBottom: webComposer.listeAltBosluk } : null,
+          ]}
+        >
           {sabitler.length > 0 ? (
             (() => {
               const sir = Math.min(sabitGosterimSirasi, sabitler.length - 1);
@@ -1499,10 +1588,7 @@ export function GroupChatScreen() {
                 });
               });
             }}
-            contentContainerStyle={[
-              styles.listContent,
-              isWeb && webKlavyeBoslugu > 0 ? { paddingBottom: Math.min(webKlavyeBoslugu, 120) } : null,
-            ]}
+            contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -1530,74 +1616,35 @@ export function GroupChatScreen() {
           )}
         </View>
 
+        {!isWeb ? (
+          <View
+            style={[
+              styles.composerDock,
+              {
+                paddingBottom: composerAltPad,
+                marginBottom: Platform.OS === "android" ? nativeKlavyeYuk : 0,
+              },
+            ]}
+          >
+            {composerPanel}
+          </View>
+        ) : null}
+      </View>
+
+      {isWeb ? (
         <View
           style={[
             styles.composerDock,
-            { paddingBottom: composerAltPad, marginBottom: isWeb ? webKlavyeBoslugu : 0 },
+            styles.composerWebSabit,
+            {
+              bottom: webComposer.composerBottom,
+              paddingBottom: composerAltPad,
+            },
           ]}
         >
-          {hata ? <Text style={styles.hata}>{hata}</Text> : null}
-          {yanitHedef ? (
-            <View style={styles.yanitBant}>
-              <View style={styles.yanitBantMetin}>
-                <Text style={styles.yanitBantBaslik}>Yanıt · {yanitHedef.sender_ad}</Text>
-                <Text style={styles.yanitBantOz} numberOfLines={1}>
-                  {alintiOzetKisalt(yanitHedef.body, 72)}
-                </Text>
-              </View>
-              <Pressable
-                style={styles.yanitBantKapat}
-                onPress={() => setYanitHedef(null)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Yanıtı iptal et"
-              >
-                <Ionicons name="close-circle" size={20} color={colors.textMuted} />
-              </Pressable>
-            </View>
-          ) : null}
-          <View style={styles.composerPill}>
-            <TextInput
-              style={styles.input}
-              placeholder="Mesaj yazın…"
-              placeholderTextColor={colors.textMuted}
-              value={taslak}
-              onChangeText={setTaslak}
-              multiline
-              maxLength={MESAJ_UZUNLUK_MAX}
-              editable={!gonderiliyor && !!groupId}
-              textAlignVertical="center"
-              underlineColorAndroid="transparent"
-              onFocus={() => {
-                if (isWeb) return;
-                requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-              }}
-            />
-            <Pressable
-              style={({ pressed }) => [
-                styles.gonderBtn,
-                (!taslak.trim() || gonderiliyor) && styles.gonderBtnDisabled,
-                pressed && taslak.trim() && !gonderiliyor ? { opacity: 0.88 } : null,
-              ]}
-              onPress={() => void gonder()}
-              disabled={!taslak.trim() || gonderiliyor}
-              accessibilityRole="button"
-              accessibilityLabel="Gönder"
-            >
-              {gonderiliyor ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Ionicons name="arrow-up" size={16} color="#fff" />
-              )}
-            </Pressable>
-          </View>
-          {kalanKarakter < 80 ? (
-            <View style={styles.sayacSatir}>
-              <Text style={[styles.sayac, styles.sayacUyari]}>Kalan {kalanKarakter} karakter</Text>
-            </View>
-          ) : null}
+          {composerPanel}
         </View>
-      </View>
+      ) : null}
 
       <MesajEylemAltSayfa
         gorunur={eylemMesaji !== null}

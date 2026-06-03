@@ -16,6 +16,7 @@ export function ustEkranBoslugu(safeAreaTop: number, ekstra: number = 12): numbe
  * Tab bar zaten home indicator alanını kaplar; insets.bottom eklenirse çift boşluk oluşur.
  */
 export function altSekmeEkranBoslugu(insetsBottom: number): number {
-  if (Platform.OS === "web") return Math.max(6, insetsBottom);
+  /** Tab bar zaten home indicator’ı kaplar; web PWA’da insets.bottom çift boşluk yapar */
+  if (Platform.OS === "web") return 4;
   return 8;
 }

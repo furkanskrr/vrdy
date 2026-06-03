@@ -24,6 +24,7 @@ import { playDelightFeedback } from "../lib/delight/feedback";
 import { useAuth } from "../context/AuthContext";
 import { useSohbetOkunmamis } from "../context/SohbetOkunmamisContext";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { useWebKeyboardInset } from "../hooks/useWebKeyboardInset";
 import { altSekmeEkranBoslugu, ustEkranBoslugu } from "../lib/safeArea";
 import type { GrupMesaji, GrupMesajiYanitOzet, TeamRole } from "../types";
 
@@ -606,8 +607,11 @@ function bubbleRadius(mine: boolean, top: boolean, bottom: boolean) {
   };
 }
 
+const isWeb = Platform.OS === "web";
+
 export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
+  const webKlavyeBoslugu = useWebKeyboardInset();
   const { colors, isDark } = useTheme();
   const delight = useDelight();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -1372,13 +1376,17 @@ export function GroupChatScreen() {
   }
 
   const composerAltPad = altSekmeEkranBoslugu(insets.bottom);
+  const KlavyeSarici = isWeb ? View : KeyboardAvoidingView;
+  const klavyeSariciProps = isWeb
+    ? ({ style: styles.screen } as const)
+    : ({
+        style: styles.screen,
+        behavior: Platform.OS === "ios" ? ("padding" as const) : undefined,
+        keyboardVerticalOffset: 0,
+      } as const);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-    >
+    <KlavyeSarici {...klavyeSariciProps}>
       <View style={styles.mainColumn}>
         <View style={[styles.header, { paddingTop: ustPad }]}>
           <View style={styles.headerSatir}>
@@ -1491,7 +1499,10 @@ export function GroupChatScreen() {
                 });
               });
             }}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              isWeb && webKlavyeBoslugu > 0 ? { paddingBottom: Math.min(webKlavyeBoslugu, 120) } : null,
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -1519,7 +1530,12 @@ export function GroupChatScreen() {
           )}
         </View>
 
-        <View style={[styles.composerDock, { paddingBottom: composerAltPad }]}>
+        <View
+          style={[
+            styles.composerDock,
+            { paddingBottom: composerAltPad, marginBottom: isWeb ? webKlavyeBoslugu : 0 },
+          ]}
+        >
           {hata ? <Text style={styles.hata}>{hata}</Text> : null}
           {yanitHedef ? (
             <View style={styles.yanitBant}>
@@ -1552,7 +1568,10 @@ export function GroupChatScreen() {
               editable={!gonderiliyor && !!groupId}
               textAlignVertical="center"
               underlineColorAndroid="transparent"
-              onFocus={() => requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }))}
+              onFocus={() => {
+                if (isWeb) return;
+                requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+              }}
             />
             <Pressable
               style={({ pressed }) => [
@@ -1618,6 +1637,6 @@ export function GroupChatScreen() {
         }}
         onIptal={() => setOnay(null)}
       />
-    </KeyboardAvoidingView>
+    </KlavyeSarici>
   );
 }

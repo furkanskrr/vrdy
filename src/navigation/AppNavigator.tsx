@@ -119,7 +119,6 @@ function MainTabs() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { okunmamisSayisi } = useSohbetOkunmamis();
-  const webTabAlt = Platform.OS === "web" ? Math.min(insets.bottom, 6) : insets.bottom;
   const sohbetRozet =
     SOHBET_AKTIF && okunmamisSayisi > 0
       ? okunmamisSayisi > 99
@@ -128,19 +127,18 @@ function MainTabs() {
       : undefined;
   return (
     <Tab.Navigator
+      safeAreaInsets={
+        Platform.OS === "web"
+          ? { top: insets.top, right: insets.right, left: insets.left, bottom: 0 }
+          : undefined
+      }
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
-          ...(Platform.OS === "web"
-            ? {
-                height: 50 + webTabAlt,
-                paddingBottom: webTabAlt,
-                paddingTop: 2,
-              }
-            : null),
+          ...(Platform.OS === "web" ? { paddingBottom: 0, height: 52 } : null),
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,

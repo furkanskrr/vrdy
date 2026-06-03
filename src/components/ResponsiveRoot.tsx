@@ -32,16 +32,14 @@ export function ResponsiveRoot({ children }: Props) {
   }
 
   const icStil = {
-    flex: 1 as const,
     width: width / olcek,
+    height: height / olcek,
     transform: [{ scale: olcek }],
-    ...(Platform.OS === "web"
-      ? ({ transformOrigin: "top left" } as const)
-      : null),
+    transformOrigin: "top left",
   };
 
   return (
-    <View style={styles.doldur}>
+    <View style={styles.dis}>
       <View style={icStil}>{children}</View>
     </View>
   );
@@ -49,4 +47,5 @@ export function ResponsiveRoot({ children }: Props) {
 
 const styles = StyleSheet.create({
   doldur: { flex: 1 },
+  dis: { flex: 1, overflow: "hidden" },
 });

@@ -39,8 +39,8 @@ const SAYFA_LIMIT = 120;
  * Geriye doğru uzun tolerans OLMAMALI: aksi halde mesajdan önce sohbeti açan da «gördü» sayılıyordu.
  */
 const OKUMA_SAAT_KAYMA_MS = 4_000;
-const R_BUYUK = 14;
-const R_KUCUK = 4;
+const R_BUYUK = 18;
+const R_KUCUK = 6;
 
 type ChatListItem =
   | { type: "date"; id: string; label: string }
@@ -148,82 +148,109 @@ function basHarfler(ad: string): string {
   return "?";
 }
 
-function createStyles(colors: ThemeColors) {
+function createStyles(colors: ThemeColors, isDark: boolean) {
+  const chatBg = isDark ? "#0b0f14" : "#e4eaf2";
+  const bubbleShadow = isDark
+    ? {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.28,
+        shadowRadius: 6,
+        elevation: 3,
+      }
+    : {
+        shadowColor: "#1e293b",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
+      };
+
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg },
     header: {
-      paddingHorizontal: 14,
-      paddingBottom: 6,
+      paddingHorizontal: 16,
+      paddingBottom: 12,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
       backgroundColor: colors.surface,
     },
-    headerSatir: { flexDirection: "row", alignItems: "center", gap: 8 },
+    headerSatir: { flexDirection: "row", alignItems: "center", gap: 12 },
     headerIkonWrap: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor: colors.surface2,
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.primaryMuted + (isDark ? "55" : "33"),
       alignItems: "center",
       justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.primary + "44",
     },
     headerMetin: { flex: 1, minWidth: 0 },
-    baslik: { fontSize: 16, fontWeight: "700", color: colors.text },
-    alt: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+    baslik: { fontSize: 18, fontWeight: "800", color: colors.text, letterSpacing: -0.3 },
+    alt: { fontSize: 12, color: colors.textMuted, marginTop: 3, fontWeight: "500" },
+    headerKimlik: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+    headerKimlikAd: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
     mainColumn: { flex: 1 },
+    chatPane: { flex: 1, backgroundColor: chatBg },
     listWrap: { flex: 1 },
-    listContent: { paddingTop: 8, paddingBottom: 12, flexGrow: 1 },
+    listContent: { paddingTop: 12, paddingBottom: 16, flexGrow: 1 },
     composerDock: {
-      paddingHorizontal: 12,
-      paddingTop: 2,
-      paddingBottom: 4,
-      backgroundColor: "transparent",
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
     },
 
-    dateRow: { alignItems: "center", marginVertical: 10 },
+    dateRow: { alignItems: "center", marginVertical: 14 },
     datePill: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
+      paddingHorizontal: 14,
+      paddingVertical: 5,
       borderRadius: 999,
-      backgroundColor: colors.surface2,
+      backgroundColor: isDark ? colors.surface2 : colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
     },
-    datePillText: { fontSize: 11, fontWeight: "600", color: colors.textMuted },
+    datePillText: { fontSize: 11, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.2 },
 
-    msgRow: { flexDirection: "row", paddingHorizontal: 10, marginBottom: 1 },
-    msgRowClusterBas: { marginTop: 8 },
+    msgRow: { flexDirection: "row", paddingHorizontal: 14, marginBottom: 2 },
+    msgRowClusterBas: { marginTop: 10 },
     msgRowMine: { justifyContent: "flex-end" },
     msgRowOther: { justifyContent: "flex-start", alignItems: "flex-end" },
-    avatarSlot: { width: 30, marginRight: 6, alignItems: "center" },
+    avatarSlot: { width: 36, marginRight: 8, alignItems: "center" },
     avatar: {
-      width: 26,
-      height: 26,
-      borderRadius: 8,
+      width: 32,
+      height: 32,
+      borderRadius: 11,
       alignItems: "center",
       justifyContent: "center",
+      ...bubbleShadow,
     },
-    avatarTxt: { fontSize: 10, fontWeight: "800", color: "#fff" },
-    bubbleCol: { maxWidth: "72%", position: "relative" },
+    avatarTxt: { fontSize: 11, fontWeight: "800", color: "#fff" },
+    bubbleCol: { maxWidth: "78%", position: "relative" },
     gonderAd: {
-      fontSize: 10,
-      fontWeight: "700",
-      color: colors.textMuted,
-      marginBottom: 2,
-      marginLeft: 2,
+      fontSize: 11,
+      fontWeight: "800",
+      color: colors.primary,
+      marginBottom: 4,
+      marginLeft: 4,
     },
     bubble: {
-      paddingHorizontal: 11,
-      paddingVertical: 7,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       maxWidth: "100%",
+      ...bubbleShadow,
     },
     bubbleMine: {
       backgroundColor: colors.primary,
     },
     bubbleOther: {
-      backgroundColor: colors.surface,
+      backgroundColor: isDark ? colors.surface : "#ffffff",
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
+      borderColor: isDark ? colors.border : "rgba(45, 58, 71, 0.12)",
     },
-    body: { fontSize: 14, color: colors.text, lineHeight: 19 },
+    body: { fontSize: 15, color: colors.text, lineHeight: 21 },
     bodyMine: { color: "#fff" },
     footerSatir: {
       flexDirection: "row",
@@ -262,77 +289,84 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       justifyContent: "center",
       alignItems: "center",
-      padding: 24,
-      minHeight: 200,
+      padding: 28,
+      minHeight: 220,
     },
     bosKart: {
       alignItems: "center",
-      padding: 18,
-      borderRadius: 14,
+      padding: 28,
+      borderRadius: 20,
       backgroundColor: colors.surface,
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth: 1,
       borderColor: colors.border,
-      maxWidth: 300,
+      maxWidth: 320,
+      width: "100%",
+      ...bubbleShadow,
     },
     bosIkon: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      backgroundColor: colors.surface2,
+      width: 56,
+      height: 56,
+      borderRadius: 18,
+      backgroundColor: colors.primaryMuted + "44",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 10,
+      marginBottom: 14,
     },
-    bosBaslik: { fontSize: 15, fontWeight: "700", color: colors.text, textAlign: "center" },
-    bosText: { fontSize: 12, color: colors.textMuted, textAlign: "center", marginTop: 6, lineHeight: 18 },
+    bosBaslik: { fontSize: 17, fontWeight: "800", color: colors.text, textAlign: "center" },
+    bosText: { fontSize: 13, color: colors.textMuted, textAlign: "center", marginTop: 8, lineHeight: 20 },
 
     yukleKart: {
-      marginHorizontal: 14,
-      marginTop: 16,
-      padding: 18,
-      borderRadius: 12,
+      marginHorizontal: 16,
+      marginTop: 24,
+      padding: 24,
+      borderRadius: 16,
       backgroundColor: colors.surface,
       alignItems: "center",
-      gap: 10,
+      gap: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
     },
-    yukleText: { fontSize: 12, color: colors.textMuted },
+    yukleText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
 
     composerIc: {
       flexDirection: "row",
       alignItems: "flex-end",
-      gap: 6,
+      gap: 8,
       alignSelf: "stretch",
-      minHeight: 46,
+      minHeight: 48,
       maxHeight: 148,
-      borderRadius: 23,
-      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: 24,
+      borderWidth: 1,
       borderColor: colors.border,
-      paddingLeft: 14,
-      paddingRight: 5,
-      paddingVertical: 5,
+      backgroundColor: isDark ? colors.surface2 : "#f8fafc",
+      paddingLeft: 16,
+      paddingRight: 6,
+      paddingVertical: 6,
       overflow: "hidden",
     },
     input: {
       flex: 1,
-      minHeight: 34,
+      minHeight: 36,
       maxHeight: 112,
-      paddingTop: Platform.OS === "ios" ? 7 : 5,
-      paddingBottom: Platform.OS === "ios" ? 7 : 5,
-      fontSize: 15,
+      paddingTop: Platform.OS === "ios" ? 8 : 6,
+      paddingBottom: Platform.OS === "ios" ? 8 : 6,
+      fontSize: 16,
       color: colors.text,
-      lineHeight: 20,
+      lineHeight: 22,
     },
     gonderBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: colors.primary,
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 1,
+      ...bubbleShadow,
     },
     gonderBtnDisabled: {
-      opacity: 0.34,
+      opacity: 0.38,
+      backgroundColor: colors.surface2,
     },
     sayacSatir: {
       flexDirection: "row",
@@ -361,49 +395,72 @@ function createStyles(colors: ThemeColors) {
       fontWeight: "600",
     },
 
-    ustAksiyonlar: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: "auto" },
+    ustAksiyonlar: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: "auto" },
     ustBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
+      width: 40,
+      height: 40,
+      borderRadius: 12,
       backgroundColor: colors.surface2,
       alignItems: "center",
       justifyContent: "center",
-    },
-    sabitBolum: { marginHorizontal: 12, marginTop: 8, marginBottom: 14 },
-    sabitInceSatir: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      paddingVertical: 6,
-      paddingLeft: 8,
-      paddingRight: 4,
-      minHeight: 40,
-      borderRadius: 10,
-      backgroundColor: colors.surface,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
-    sabitInceDokun: {
+    ustBtnAktif: {
+      backgroundColor: colors.primaryMuted + "44",
+      borderColor: colors.primary + "55",
+    },
+    sabitBolum: { marginHorizontal: 14, marginTop: 10, marginBottom: 4 },
+    sabitKart: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      borderRadius: 14,
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      overflow: "hidden",
+      ...bubbleShadow,
+    },
+    sabitSolCizgi: {
+      width: 4,
+      backgroundColor: colors.primary,
+    },
+    sabitIc: {
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
       minWidth: 0,
     },
-    sabitInceNum: {
-      fontSize: 12,
-      fontWeight: "800",
-      color: colors.primary,
+    sabitPinWrap: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: colors.primaryMuted + "44",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    sabitMetinBlok: { flex: 1, minWidth: 0 },
+    sabitBaslikSatir: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 3 },
+    sabitBaslik: { fontSize: 11, fontWeight: "800", color: colors.primary, letterSpacing: 0.4 },
+    sabitSira: {
+      fontSize: 10,
+      fontWeight: "700",
+      color: colors.textMuted,
       fontVariant: ["tabular-nums"],
     },
-    sabitInceMetin: { flex: 1, fontSize: 13, color: colors.text, minWidth: 0 },
-    sabitInceGonderen: { fontWeight: "700", color: colors.text },
-    sabitInceKaldir: {
-      paddingVertical: 6,
-      paddingHorizontal: 8,
+    sabitGovde: { fontSize: 13, color: colors.text, lineHeight: 18 },
+    sabitGonderen: { fontWeight: "800", color: colors.text },
+    sabitKaldir: {
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      justifyContent: "center",
+      borderLeftWidth: StyleSheet.hairlineWidth,
+      borderLeftColor: colors.border,
     },
-    sabitInceKaldirText: { fontSize: 11, fontWeight: "700", color: colors.textMuted },
+    sabitKaldirText: { fontSize: 12, fontWeight: "800", color: colors.afternoon },
     sabitMsgBadge: {
       position: "absolute",
       top: 2,
@@ -431,19 +488,28 @@ function createStyles(colors: ThemeColors) {
     yanitBant: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      marginBottom: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 12,
-      backgroundColor: colors.surface2,
-      borderWidth: StyleSheet.hairlineWidth,
+      gap: 10,
+      marginBottom: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 14,
+      backgroundColor: isDark ? colors.surface2 : "#f1f5f9",
+      borderWidth: 1,
+      borderLeftWidth: 3,
       borderColor: colors.border,
+      borderLeftColor: colors.primary,
     },
     yanitBantMetin: { flex: 1, minWidth: 0 },
-    yanitBantBaslik: { fontSize: 10, fontWeight: "800", color: colors.primary },
-    yanitBantOz: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    yanitBantKapat: { padding: 4 },
+    yanitBantBaslik: { fontSize: 11, fontWeight: "800", color: colors.primary, letterSpacing: 0.2 },
+    yanitBantOz: { fontSize: 13, color: colors.textMuted, marginTop: 3, lineHeight: 18 },
+    yanitBantKapat: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+    },
   });
 }
 
@@ -539,8 +605,7 @@ export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const delight = useDelight();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const composerPillBg = isDark ? "rgba(26, 34, 44, 0.78)" : "rgba(255, 255, 255, 0.82)";
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const { user, session } = useAuth();
   const { sohbetEkraniOdaktaAyarla, okunmamisYenile, sohbetSessiz, sohbetSessizAyarla } =
     useSohbetOkunmamis();
@@ -1095,14 +1160,17 @@ export function GroupChatScreen() {
 
   const kalanKarakter = MESAJ_UZUNLUK_MAX - taslak.length;
   const ustPad = ustEkranBoslugu(insets.top, 6);
+  const ekipUyeSayisi = digerUyeler.length + (benimProfilId || uidHook ? 1 : 0);
   const altBaslik = useMemo(() => {
     const m = user?.magazaAdi?.trim();
     const n = mesajlar.length;
     const sab = sabitler.length;
-    const sabitParca = sab > 0 ? ` · ${sab} sabitli` : "";
-    if (m) return `${m} · ${n} mesaj${sabitParca}`;
-    return `${n} mesaj${sabitParca}`;
-  }, [user?.magazaAdi, mesajlar.length, sabitler.length]);
+    const uyeParca = ekipUyeSayisi > 0 ? `${ekipUyeSayisi} üye` : "Ekip";
+    const mesajParca = n > 0 ? `${n} mesaj` : "Henüz mesaj yok";
+    const sabitParca = sab > 0 ? ` · ${sab} duyuru` : "";
+    if (m) return `${m} · ${uyeParca} · ${mesajParca}${sabitParca}`;
+    return `${uyeParca} · ${mesajParca}${sabitParca}`;
+  }, [user?.magazaAdi, mesajlar.length, sabitler.length, ekipUyeSayisi]);
 
   const satirRender = useCallback(
     ({ item }: { item: ChatListItem }) => {
@@ -1215,47 +1283,53 @@ export function GroupChatScreen() {
         <View style={styles.header}>
           <View style={styles.headerSatir}>
             <View style={styles.headerIkonWrap}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+              <Ionicons name="chatbubbles" size={22} color={colors.primary} />
             </View>
             <View style={styles.headerMetin}>
-              <Text style={styles.baslik}>Sohbet</Text>
-              <Text style={styles.alt} numberOfLines={1}>
-                Gruba katılınca açılır
+              <Text style={styles.baslik}>Grup sohbeti</Text>
+              <Text style={styles.alt} numberOfLines={2}>
+                Ekip mesajlaşması gruba katılınca açılır
               </Text>
             </View>
           </View>
         </View>
-        <View style={styles.bos}>
+        <View style={[styles.chatPane, styles.bos]}>
           <View style={styles.bosKart}>
             <View style={styles.bosIkon}>
-              <Ionicons name="people-outline" size={22} color={colors.primary} />
+              <Ionicons name="people-outline" size={28} color={colors.primary} />
             </View>
             <Text style={styles.bosBaslik}>Önce gruba katılın</Text>
-            <Text style={styles.bosText}>Kurulumda grup oluşturun veya kod ile katılın.</Text>
+            <Text style={styles.bosText}>Kurulumda grup oluşturun veya davet kodu ile ekibe girin.</Text>
           </View>
         </View>
       </View>
     );
   }
 
+  const altPad = Math.max(10, insets.bottom);
+
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior="padding" keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+    >
       <View style={styles.mainColumn}>
         <View style={[styles.header, { paddingTop: ustPad }]}>
           <View style={styles.headerSatir}>
             <View style={styles.headerIkonWrap}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+              <Ionicons name="chatbubbles" size={22} color={colors.primary} />
             </View>
             <View style={styles.headerMetin}>
-              <Text style={styles.baslik}>Sohbet</Text>
-              <Text style={styles.alt} numberOfLines={1}>
+              <Text style={styles.baslik}>Grup sohbeti</Text>
+              <Text style={styles.alt} numberOfLines={2}>
                 {altBaslik}
-                {yukleniyor ? " · …" : ""}
-                {sohbetSessiz ? " · Sessiz (yerel)" : ""}
+                {yukleniyor ? " · yükleniyor" : ""}
+                {sohbetSessiz ? " · bildirimler kapalı" : ""}
               </Text>
               {user ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-                  <Text style={[styles.alt, { marginTop: 0 }]} numberOfLines={1}>
+                <View style={styles.headerKimlik}>
+                  <Text style={styles.headerKimlikAd} numberOfLines={1}>
                     {user.ad?.trim() || "Siz"}
                   </Text>
                   <RolRozeti rol={user.rol} size="sm" />
@@ -1264,14 +1338,14 @@ export function GroupChatScreen() {
             </View>
             <View style={styles.ustAksiyonlar}>
               <Pressable
-                style={styles.ustBtn}
+                style={[styles.ustBtn, sohbetSessiz && styles.ustBtnAktif]}
                 onPress={() => void sohbetSessizAyarla(!sohbetSessiz)}
                 accessibilityRole="button"
                 accessibilityLabel={sohbetSessiz ? "Sohbet bildirimlerini aç" : "Sohbet bildirimlerini sessize al"}
               >
                 <Ionicons
                   name={sohbetSessiz ? "notifications-off-outline" : "notifications-outline"}
-                  size={20}
+                  size={21}
                   color={sohbetSessiz ? colors.textMuted : colors.primary}
                 />
               </Pressable>
@@ -1279,57 +1353,66 @@ export function GroupChatScreen() {
           </View>
         </View>
 
-        {sabitler.length > 0 ? (
-          (() => {
-            const sir = Math.min(sabitGosterimSirasi, sabitler.length - 1);
-            const aktif = sabitler[sir]!;
-            const siraGoster = sir + 1;
-            return (
-              <View style={styles.sabitBolum}>
-                <View style={styles.sabitInceSatir}>
-                  <Pressable
-                    style={({ pressed }) => [styles.sabitInceDokun, pressed ? { opacity: 0.82 } : null]}
-                    onPress={() => {
-                      mesajaKaydir(aktif.messageId);
-                      setSabitGosterimSirasi((i) => (i + 1) % sabitler.length);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Sabitli ${siraGoster} / ${sabitler.length}. Dokununca sohbette mesaja gider ve sıradaki sabit gösterilir.`}
-                  >
-                    <Ionicons name="pin" size={15} color={colors.primary} />
-                    <Text style={styles.sabitInceNum}>
-                      ({siraGoster}/{sabitler.length})
-                    </Text>
-                    <Text style={styles.sabitInceMetin} numberOfLines={1}>
-                      <Text style={styles.sabitInceGonderen}>{aktif.ozet.sender_ad}</Text>
-                      <Text style={{ color: colors.textMuted }}> · </Text>
-                      {alintiOzetKisalt(aktif.ozet.body, 120)}
-                    </Text>
-                  </Pressable>
-                  {user?.rol === "mudur" ? (
+        <View style={styles.chatPane}>
+          {sabitler.length > 0 ? (
+            (() => {
+              const sir = Math.min(sabitGosterimSirasi, sabitler.length - 1);
+              const aktif = sabitler[sir]!;
+              const siraGoster = sir + 1;
+              return (
+                <View style={styles.sabitBolum}>
+                  <View style={styles.sabitKart}>
+                    <View style={styles.sabitSolCizgi} />
                     <Pressable
-                      style={styles.sabitInceKaldir}
-                      onPress={() =>
-                        setOnay({ tur: "kaldir", pinId: aktif.pinId, mesajId: aktif.messageId })
-                      }
-                      accessibilityLabel="Bu sabitlemeyi kaldır"
+                      style={({ pressed }) => [styles.sabitIc, pressed ? { opacity: 0.88 } : null]}
+                      onPress={() => {
+                        mesajaKaydir(aktif.messageId);
+                        setSabitGosterimSirasi((i) => (i + 1) % sabitler.length);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Sabit duyuru ${siraGoster} / ${sabitler.length}. Mesaja git.`}
                     >
-                      <Text style={styles.sabitInceKaldirText}>Kaldır</Text>
+                      <View style={styles.sabitPinWrap}>
+                        <Ionicons name="pin" size={16} color={colors.primary} />
+                      </View>
+                      <View style={styles.sabitMetinBlok}>
+                        <View style={styles.sabitBaslikSatir}>
+                          <Text style={styles.sabitBaslik}>SABİT DUYURU</Text>
+                          <Text style={styles.sabitSira}>
+                            {siraGoster}/{sabitler.length}
+                          </Text>
+                        </View>
+                        <Text style={styles.sabitGovde} numberOfLines={2}>
+                          <Text style={styles.sabitGonderen}>{aktif.ozet.sender_ad}</Text>
+                          <Text style={{ color: colors.textMuted }}> — </Text>
+                          {alintiOzetKisalt(aktif.ozet.body, 140)}
+                        </Text>
+                      </View>
                     </Pressable>
-                  ) : null}
+                    {user?.rol === "mudur" ? (
+                      <Pressable
+                        style={styles.sabitKaldir}
+                        onPress={() =>
+                          setOnay({ tur: "kaldir", pinId: aktif.pinId, mesajId: aktif.messageId })
+                        }
+                        accessibilityLabel="Bu sabitlemeyi kaldır"
+                      >
+                        <Text style={styles.sabitKaldirText}>Kaldır</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-            );
-          })()
-        ) : null}
+              );
+            })()
+          ) : null}
 
-        {yukleniyor ? (
-          <View style={styles.yukleKart}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.yukleText}>Yükleniyor…</Text>
-          </View>
-        ) : (
-          <FlatList
+          {yukleniyor ? (
+            <View style={styles.yukleKart}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.yukleText}>Mesajlar yükleniyor…</Text>
+            </View>
+          ) : (
+            <FlatList
             ref={listRef}
             style={styles.listWrap}
             data={listData}
@@ -1358,17 +1441,20 @@ export function GroupChatScreen() {
               <View style={styles.bos}>
                 <View style={styles.bosKart}>
                   <View style={styles.bosIkon}>
-                    <Ionicons name="paper-plane-outline" size={22} color={colors.primary} />
+                    <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.primary} />
                   </View>
-                  <Text style={styles.bosBaslik}>Mesaj yok</Text>
-                  <Text style={styles.bosText}>İlk mesajı siz gönderin.</Text>
+                  <Text style={styles.bosBaslik}>Henüz mesaj yok</Text>
+                  <Text style={styles.bosText}>
+                    Ekip sohbeti burada görünür. İlk mesajı yazarak başlayın; uzun basarak yanıtlayabilirsiniz.
+                  </Text>
                 </View>
               </View>
             }
           />
-        )}
+          )}
+        </View>
 
-        <View style={styles.composerDock}>
+        <View style={[styles.composerDock, { paddingBottom: altPad }]}>
           {hata ? <Text style={styles.hata}>{hata}</Text> : null}
           {yanitHedef ? (
             <View style={styles.yanitBant}>
@@ -1388,7 +1474,7 @@ export function GroupChatScreen() {
               </Pressable>
             </View>
           ) : null}
-          <View style={[styles.composerIc, { backgroundColor: composerPillBg }]}>
+          <View style={styles.composerIc}>
             <TextInput
               style={styles.input}
               placeholder="Mesaj yazın…"

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useEffect, useState } from "react";
-import { Linking, Platform, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Linking, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -117,7 +116,6 @@ function ArchiveStackNav() {
 
 function MainTabs() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const { okunmamisSayisi } = useSohbetOkunmamis();
   const sohbetRozet =
     SOHBET_AKTIF && okunmamisSayisi > 0
@@ -127,18 +125,13 @@ function MainTabs() {
       : undefined;
   return (
     <Tab.Navigator
-      safeAreaInsets={
-        Platform.OS === "web"
-          ? { top: insets.top, right: insets.right, left: insets.left, bottom: 0 }
-          : undefined
-      }
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
+        sceneContainerStyle: { flex: 1, backgroundColor: colors.bg },
         tabBarStyle: {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
-          ...(Platform.OS === "web" ? { paddingBottom: 0, height: 52 } : null),
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
@@ -268,7 +261,7 @@ export function AppNavigator() {
   );
 
   return (
-    <NavigationContainer ref={navigationRef} theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme} style={{ flex: 1 }}>
       <DeepLinkSifreHandler />
       {sifreKurtarmaBekliyor ? (
         <RecoveryStackNav />

@@ -18,7 +18,6 @@ import { NotificationProvider } from "./src/context/NotificationContext";
 import { DelightProvider } from "./src/context/DelightContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { UpdateProvider } from "./src/context/UpdateContext";
-import { ResponsiveRoot } from "./src/components/ResponsiveRoot";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 
 function ThemedStatusBar() {
@@ -28,17 +27,17 @@ function ThemedStatusBar() {
 
 function AppInner() {
   return (
-    <ResponsiveRoot>
+    <>
       <AppNavigator />
       <ThemedStatusBar />
-    </ResponsiveRoot>
+    </>
   );
 }
 
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
+      <SafeAreaProvider style={styles.root}>
         <DelightProvider>
           <ThemeProvider>
             <UpdateProvider>

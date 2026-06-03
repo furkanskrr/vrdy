@@ -150,6 +150,29 @@ export function SettingsScreen() {
     setPartnerModalSecim("");
   }
 
+  function izinGunuKaldirOnay(uye: TeamMember, gunAdi: string) {
+    if (!isMudur || izinGunu[uye.id] === undefined) return;
+    Alert.alert(
+      "İzin gününü kaldır",
+      `${uye.ad} için haftalık izin şablonu (${gunAdi}) kaldırılsın mı? Vardiya tablosunda bu günler boş kalır; gerektiğinde hücreden manuel atama yapabilirsiniz.`,
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Kaldır",
+          style: "destructive",
+          onPress: async () => {
+            const ok = await clearIzinGunu(uye.id);
+            if (ok) {
+              bildirimGonder("izin", "İzin günü kaldırıldı", `${uye.ad} için haftalık izin şablonu silindi.`);
+            } else {
+              Alert.alert("Hata", "İzin günü kaldırılamadı. Bağlantıyı kontrol edip tekrar deneyin.");
+            }
+          },
+        },
+      ]
+    );
+  }
+
   async function partnerKaydet() {
     if (!partnerModalUye || !isMudur) return;
     const a = partnerModalUye;
@@ -664,8 +687,8 @@ export function SettingsScreen() {
               • Her kişi haftada tam 1 gün izin kullanır.{"\n"}• Partnerler aynı günde izin alamaz; çakışan günler
               soluk ve üstü çizili görünür.{"\n"}• İzinlinin partneri o gün tam gün çalışır; izin öncesi sabah, sonrası
               öğle vardiyası atanır.{"\n"}              • İzin gününü değiştirdiğinizde, o güne bağlı manuel vardiya atamaları
-              temizlenebilir; haftalık tabloyu kontrol edin.{"\n"}• Seçili izin gününe uzun basarak haftalık izin
-              şablonunu tamamen kaldırabilirsiniz; sonrasında vardiyayı hücreden manuel girersiniz.
+              temizlenebilir; haftalık tabloyu kontrol edin.{"\n"}• Tanımlı izin için satırdaki «İzni kaldır»
+              düğmesine basın (telefonda seçili güne uzun basma da çalışır).
             </Text>
           </View>
 
@@ -685,8 +708,8 @@ export function SettingsScreen() {
                 <Text style={styles.lejantOgeBaslik}>Seçili izin günü</Text>
                 <Text style={styles.lejantOgeAciklama}>
                   Mavi çerçeveli, dolu görünen kutu: Bu çalışanın her hafta tekrarlayan izin günü. Vardiya sekmesinde o
-                  günler izin olarak işlenir. Müdür başka bir güne dokununca kayıt o güne taşınır; seçili güne uzun
-                  basınca izin şablonu kaldırılır.
+                  günler izin olarak işlenir. Müdür başka bir güne dokununca kayıt taşınır; «İzni kaldır» ile şablon
+                  silinir.
                 </Text>
               </View>
             </View>
@@ -731,8 +754,8 @@ export function SettingsScreen() {
 
           <Text style={styles.bolumBaslik}>Ekip izin planı</Text>
           <Text style={styles.bolumAlt}>
-            Her satır bir çalışandır. İstediğiniz güne dokunarak haftalık izin şablonunu güncelleyin; kayıt anında
-            sunucuya yazılır.
+            Her satır bir çalışandır. Boş güne dokunarak izin atayın; tanımlı izni kaldırmak için satırdaki «İzni
+            kaldır» düğmesini veya seçili güne uzun basmayı kullanın.
           </Text>
 
           {ekip.map((u) => {
@@ -765,6 +788,16 @@ export function SettingsScreen() {
                           ? `Haftalık izin: ${IZIN_GUNLERI[seciliIdx]}`
                           : "Henüz izin günü seçilmedi"}
                       </Text>
+                      {isMudur && seciliIdx !== undefined ? (
+                        <Pressable
+                          style={({ pressed }) => [styles.izinKaldirBtn, pressed && styles.izinKaldirBtnPressed]}
+                          onPress={() => izinGunuKaldirOnay(u, IZIN_GUNLERI[seciliIdx])}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${u.ad} için izin gününü kaldır`}
+                        >
+                          <Text style={styles.izinKaldirBtnTxt}>İzni kaldır</Text>
+                        </Pressable>
+                      ) : null}
                     </View>
                   </View>
                 </View>
@@ -781,48 +814,29 @@ export function SettingsScreen() {
                   {IZIN_GUNLERI.map((gun, idx) => {
                     const sec = izinGunu[u.id] === idx;
                     const engelli = partnerIzin === idx;
-                    const disabled = !isMudur || engelli;
+                    const hucreKapali = !isMudur || engelli;
                     return (
-                      <TouchableOpacity
+                      <Pressable
                         key={gun}
-                        disabled={disabled}
-                        activeOpacity={isMudur && !engelli ? 0.75 : 1}
-                        style={[
+                        disabled={hucreKapali}
+                        style={({ pressed }) => [
                           styles.izinGunHucre,
                           sec && styles.izinGunHucreSecili,
                           engelli && styles.izinGunHucreKilit,
                           !isMudur && styles.izinGunHucreSalt,
                           !isMudur && sec && styles.izinGunHucreSaltSecili,
+                          isMudur && !engelli && pressed && !sec && styles.izinGunHucrePressed,
                         ]}
                         onPress={async () => {
-                          if (isMudur && !sec) {
+                          if (isMudur && !sec && !engelli) {
                             await setIzinGunu(u.id, idx as HaftaGunuIndex);
                             bildirimGonder("izin", "İzin günü değişti", `${u.ad} izin günü: ${gun}`);
                           }
                         }}
                         onLongPress={() => {
-                          if (!isMudur || !sec) return;
-                          Alert.alert(
-                            "İzin gününü kaldır",
-                            `${u.ad} için haftalık izin şablonu (${gun}) kaldırılsın mı? Vardiya tablosunda bu günler boş kalır; gerektiğinde hücreden manuel atama yapabilirsiniz.`,
-                            [
-                              { text: "Vazgeç", style: "cancel" },
-                              {
-                                text: "Kaldır",
-                                style: "destructive",
-                                onPress: async () => {
-                                  const ok = await clearIzinGunu(u.id);
-                                  if (ok) {
-                                    bildirimGonder("izin", "İzin günü kaldırıldı", `${u.ad} için haftalık izin şablonu silindi.`);
-                                  } else {
-                                    Alert.alert("Hata", "İzin günü kaldırılamadı. Bağlantıyı kontrol edip tekrar deneyin.");
-                                  }
-                                },
-                              },
-                            ]
-                          );
+                          if (isMudur && sec) izinGunuKaldirOnay(u, gun);
                         }}
-                        delayLongPress={400}
+                        delayLongPress={450}
                       >
                         <Text
                           style={[
@@ -833,7 +847,7 @@ export function SettingsScreen() {
                         >
                           {IZIN_GUN_KISA[idx]}
                         </Text>
-                      </TouchableOpacity>
+                      </Pressable>
                     );
                   })}
                 </View>
@@ -1435,8 +1449,19 @@ function createSettingsStyles(colors: ThemeColors) {
   },
   izinKartBenRozetTxt: { fontSize: 10, fontWeight: "800", color: colors.primary },
   izinKartRol: { fontSize: 12, color: colors.textMuted, marginTop: 2, fontWeight: "600" },
-  izinKartHaftalik: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  izinKartHaftalikTxt: { fontSize: 13, color: colors.text, fontWeight: "600", flex: 1 },
+  izinKartHaftalik: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  izinKartHaftalikTxt: { fontSize: 13, color: colors.text, fontWeight: "600", flex: 1, minWidth: 120 },
+  izinKaldirBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.afternoon + "88",
+  },
+  izinKaldirBtnPressed: { opacity: 0.75 },
+  izinKaldirBtnTxt: { fontSize: 12, fontWeight: "800", color: colors.afternoon },
+  izinGunHucrePressed: { opacity: 0.85 },
   izinKartPartnerSatiri: {
     flexDirection: "row",
     alignItems: "center",

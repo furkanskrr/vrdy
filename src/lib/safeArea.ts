@@ -15,8 +15,9 @@ export function ustEkranBoslugu(safeAreaTop: number, ekstra: number = 12): numbe
  * Alt sekme çubuğu olan ekranlarda (Sohbet vb.) composer alt boşluğu.
  * Tab bar zaten home indicator alanını kaplar; insets.bottom eklenirse çift boşluk oluşur.
  */
-export function altSekmeEkranBoslugu(insetsBottom: number): number {
-  /** Tab bar zaten home indicator’ı kaplar; web PWA’da insets.bottom çift boşluk yapar */
-  if (Platform.OS === "web") return 4;
-  return 8;
+export function altSekmeEkranBoslugu(_insetsBottom: number): number {
+  /** Alt sekme zaten güvenli alanı kaplar; composer altında ekstra boşluk ekleme */
+  if (Platform.OS === "web") return 0;
+  if (Platform.OS === "android") return 0;
+  return 4;
 }

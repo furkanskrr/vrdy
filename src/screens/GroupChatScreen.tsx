@@ -24,9 +24,7 @@ import { playDelightFeedback } from "../lib/delight/feedback";
 import { useAuth } from "../context/AuthContext";
 import { useSohbetOkunmamis } from "../context/SohbetOkunmamisContext";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
-import { IPHONE_PRO_MAX_GENISLIK } from "../components/WebMobileFrame";
-import { useNativeKeyboardHeight } from "../hooks/useNativeKeyboardHeight";
-import { useWebComposerLayout } from "../hooks/useWebComposerLayout";
+import { useWebKeyboardOverlap } from "../hooks/useWebKeyboardOverlap";
 import { altSekmeEkranBoslugu, ustEkranBoslugu } from "../lib/safeArea";
 import type { GrupMesaji, GrupMesajiYanitOzet, TeamRole } from "../types";
 
@@ -207,18 +205,6 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     composerDock: {
       paddingHorizontal: 12,
       paddingTop: 6,
-      backgroundColor: "transparent",
-    },
-    composerWebSabit: {
-      position: "fixed",
-      left: 0,
-      right: 0,
-      zIndex: 200,
-      width: "100%",
-      maxWidth: IPHONE_PRO_MAX_GENISLIK,
-      alignSelf: "center",
-      marginLeft: "auto",
-      marginRight: "auto",
       backgroundColor: isDark ? colors.bg : chatBg,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
@@ -627,8 +613,7 @@ const isWeb = Platform.OS === "web";
 
 export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
-  const webComposer = useWebComposerLayout();
-  const nativeKlavyeYuk = useNativeKeyboardHeight();
+  const webKlavyeOverlap = useWebKeyboardOverlap();
   const { colors, isDark } = useTheme();
   const delight = useDelight();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -1395,13 +1380,15 @@ export function GroupChatScreen() {
   const composerAltPad = altSekmeEkranBoslugu(insets.bottom);
   const KlavyeSarici = isWeb || Platform.OS === "android" ? View : KeyboardAvoidingView;
   const klavyeSariciProps = isWeb
-    ? ({ style: styles.screen } as const)
+    ? ({
+        style: [styles.screen, webKlavyeOverlap > 0 ? { paddingBottom: webKlavyeOverlap } : null],
+      } as const)
     : Platform.OS === "android"
       ? ({ style: styles.screen } as const)
       : ({
           style: styles.screen,
           behavior: "padding" as const,
-          keyboardVerticalOffset: 2,
+          keyboardVerticalOffset: 0,
         } as const);
 
   const composerPanel = (
@@ -1510,12 +1497,7 @@ export function GroupChatScreen() {
           </View>
         </View>
 
-        <View
-          style={[
-            styles.chatPane,
-            isWeb ? { paddingBottom: webComposer.listeAltBosluk } : null,
-          ]}
-        >
+        <View style={styles.chatPane}>
           {sabitler.length > 0 ? (
             (() => {
               const sir = Math.min(sabitGosterimSirasi, sabitler.length - 1);
@@ -1616,35 +1598,10 @@ export function GroupChatScreen() {
           )}
         </View>
 
-        {!isWeb ? (
-          <View
-            style={[
-              styles.composerDock,
-              {
-                paddingBottom: composerAltPad,
-                marginBottom: Platform.OS === "android" ? nativeKlavyeYuk : 0,
-              },
-            ]}
-          >
-            {composerPanel}
-          </View>
-        ) : null}
-      </View>
-
-      {isWeb ? (
-        <View
-          style={[
-            styles.composerDock,
-            styles.composerWebSabit,
-            {
-              bottom: webComposer.composerBottom,
-              paddingBottom: composerAltPad,
-            },
-          ]}
-        >
+        <View style={[styles.composerDock, { paddingBottom: composerAltPad }]}>
           {composerPanel}
         </View>
-      ) : null}
+      </View>
 
       <MesajEylemAltSayfa
         gorunur={eylemMesaji !== null}

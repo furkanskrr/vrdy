@@ -18,7 +18,6 @@ import { NotificationProvider } from "./src/context/NotificationContext";
 import { DelightProvider } from "./src/context/DelightContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { UpdateProvider } from "./src/context/UpdateContext";
-import { WebMobileFrame } from "./src/components/WebMobileFrame";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 
 function ThemedStatusBar() {
@@ -28,10 +27,10 @@ function ThemedStatusBar() {
 
 function AppInner() {
   return (
-    <WebMobileFrame>
+    <>
       <AppNavigator />
       <ThemedStatusBar />
-    </WebMobileFrame>
+    </>
   );
 }
 

@@ -130,14 +130,15 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
           ...(Platform.OS === "web"
             ? {
-                height: 52 + webTabAlt,
+                height: 50 + webTabAlt,
                 paddingBottom: webTabAlt,
-                paddingTop: 4,
+                paddingTop: 2,
               }
             : null),
         },

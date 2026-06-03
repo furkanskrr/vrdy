@@ -1,0 +1,31 @@
+1.gün: ekmek dolapları ve sebze- meyve
+2.gün: atıştırmalık kek -light ürünler
+3.gün: atıştırmalık bisküvi - petibör ürünler
+4.gün: çikolata ve su reyonları
+5.gün: cips ve kuruyemiş reyonları
+6.gün: gazlı içecek reyonları
+7.gün: soda ve meyve suyu reyonları
+8.gün: ekmek dolapları ve sebze- meyve
+9.gün: şarkteri süt ürünleri reyonları
+10.gün: şarküteri et ürünleri reyonları
+11.gün: donuk ürün ve içecek dolabı
+12.gün: kahvaltılık ve kahve reyonları
+13.gün: süt ve cornflakes reyonları
+14.gün: çay ve şeker reyonları
+15.gün: ekmek dolapları ve sebze- meyve
+16.gün: konserve çorba baharat reyonları	
+17.gün: bakliyat pirinç makarna reyonları
+18.gün: un ve toz tatlı reyonları
+19.gün: sıvı yağ reyonları
+20.gün: kozmetik hijyen ve kadın reyonları
+21.gün: kozmetik banyo ve saç reyonları
+22.gün: kozmetik ağız ve erkek reyonları
+23.gün: ekmek dolapları ve sebze- meyve
+24.gün: kasa ön ve kasa arkası reyonları 
+25.gün: yumuşatıcı ve bulaşık deterjanı reyonları 
+26.gün: toz deterjan reyonu 
+27.gün: genel temizlik ürnleri reyonları 
+28.gün: knf, bebek bezi ve bebek mama reyonları 
+29.gün: kağıt reyonları 
+30.gün: tm reyonların genel kontrolü
+

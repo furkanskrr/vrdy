@@ -1,0 +1,5 @@
+-- Kayıt sonrası anında oturum için (Supabase Dashboard):
+-- Authentication → Providers → Email → "Confirm email" KAPALI olmalı.
+--
+-- Kapalıyken signUp/signInWithPassword doğrudan session döner;
+-- uygulama kayıt ekranından sonra kurulum akışına geçer.

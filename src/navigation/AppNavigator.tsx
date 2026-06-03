@@ -16,6 +16,7 @@ import { RegisterScreen } from "../screens/RegisterScreen";
 import { ForgotPasswordScreen } from "../screens/ForgotPasswordScreen";
 import { HesapBilgileriScreen } from "../screens/HesapBilgileriScreen";
 import { SifreBelirleScreen } from "../screens/SifreBelirleScreen";
+import { AppEntrySplash } from "../components/AppEntrySplash";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { GroupSetupScreen } from "../screens/GroupSetupScreen";
 import { HomeScreen } from "../screens/HomeScreen";
@@ -208,10 +209,15 @@ function MainStackNav() {
 
 function SetupFlow() {
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   const needsOnboarding = !user?.onboardingComplete;
   const needsGroup = !user?.groupId;
+
+  /** Profil henüz netleşmeden Kurulum flaşı (özellikle iOS) */
+  if (loading || (user && needsOnboarding && user.onboarded)) {
+    return <AppEntrySplash />;
+  }
 
   /** Koşullu tek ekranlı Stack yerine doğrudan render: gruba katılınca user.groupId güncellenince ana uygulama her zaman gösterilir. */
   if (needsOnboarding) {

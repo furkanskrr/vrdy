@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Alert, AppState, Linking } from "react-native";
+import { Alert, AppState, Linking, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authHatasiGecersizRefreshToken, isSupabaseConfigured, supabase } from "../lib/supabase";
 import {
@@ -16,6 +16,7 @@ import {
   savePushToken,
 } from "../lib/notifications";
 import { AppEntrySplash } from "../components/AppEntrySplash";
+import { profilCacheOku, profilCacheSil, profilCacheYaz } from "../lib/profilCache";
 import { PushPermissionModal } from "../components/PushPermissionModal";
 import type { TeamRole, UserProfile } from "../types";
 import type { Session } from "@supabase/supabase-js";
@@ -70,25 +71,45 @@ function profilBirlestir(prev: UserProfile | null, next: UserProfile): UserProfi
   const { authGruptanKoparildi, ...restNext } = next;
   const ayniHesap = !!prev?.email && prev.email === next.email;
   const oncekiOnboarding = ayniHesap && !!prev?.onboardingComplete;
-  /**
-   * Hayalet grup düzeltmesi bazen yanlış pozitif (üye satırı henüz görünmüyor / RLS yarışı).
-   * Gerçekten gruptan düşmeden önce client’ta groupId hiç yoksa yerel tamamlanmış kurulumu koru.
-   */
+  const oncekiGrup = ayniHesap && !!prev?.groupId;
+
+  /** iOS’ta group_members gecikince yanlış “gruptan çıktı” → Kurulum flaşı; önceki oturumu koru */
+  if (authGruptanKoparildi && oncekiGrup && oncekiOnboarding) {
+    return {
+      ...restNext,
+      groupId: prev!.groupId,
+      grupKodu: prev!.grupKodu ?? restNext.grupKodu,
+      magazaAdi: prev!.magazaAdi || restNext.magazaAdi,
+      rol: prev!.rol ?? restNext.rol,
+      onboardingComplete: true,
+      onboarded: true,
+    };
+  }
+
   const onboardingComplete = authGruptanKoparildi
-    ? !!next.onboardingComplete ||
-        (oncekiOnboarding && prev?.groupId == null && next.groupId == null)
+    ? !!next.onboardingComplete || (oncekiOnboarding && oncekiGrup)
     : restNext.groupId == null
       ? !!next.onboardingComplete || oncekiOnboarding
       : next.onboardingComplete || oncekiOnboarding;
+
+  const groupId = authGruptanKoparildi && oncekiGrup ? prev!.groupId : restNext.groupId;
+  const grupKodu =
+    authGruptanKoparildi && oncekiGrup ? (prev!.grupKodu ?? restNext.grupKodu) : restNext.grupKodu;
+
   return {
     ...restNext,
+    groupId,
+    grupKodu,
     onboardingComplete,
+    onboarded: !!groupId || restNext.onboarded,
   };
 }
 
-/** Ağ yavaşken bile oturum açıldıysa UI’nin takılmaması için; fetchProfile sonra detayları doldurur */
+/** fetchProfile başarısız olursa yedek; Kurulum ekranına düşmemek için metadata ipucu kullanılır */
 function oturumdanAsgariProfil(s: Session): UserProfile {
   const u = s.user;
+  const metaVal = u.user_metadata?.onboarding_complete;
+  const metaTamam = metaVal === true || metaVal === "true" || metaVal === 1;
   return {
     email: u.email ?? "",
     ad: String(u.user_metadata?.ad ?? u.email?.split("@")[0] ?? ""),
@@ -96,7 +117,7 @@ function oturumdanAsgariProfil(s: Session): UserProfile {
     rol: "personel",
     grupKodu: null,
     groupId: null,
-    onboardingComplete: false,
+    onboardingComplete: metaTamam,
     onboarded: false,
   };
 }
@@ -112,10 +133,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [pushModalBusy, setPushModalBusy] = useState(false);
   const [sifreKurtarmaBekliyor, setSifreKurtarmaBekliyor] = useState(false);
 
+  type FetchProfilSecenek = { uyelikKontroluYumusak?: boolean };
+
   const fetchProfile = useCallback(async (
     userId: string,
     fallbackEmail?: string,
-    sessionHint?: Session | null
+    sessionHint?: Session | null,
+    secenek?: FetchProfilSecenek
   ): Promise<UserProfile> => {
     try {
       const { data } = await supabase
@@ -132,10 +156,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let gruptanKoparildi = false;
 
         if (effectiveGroupId) {
+          const denemeSayisi = Platform.OS === "ios" ? 6 : 3;
+          const beklemeMs = Platform.OS === "ios" ? 450 : 350;
           let uyeSatir: { id: string } | null = null;
-          for (let deneme = 0; deneme < 3; deneme++) {
+          for (let deneme = 0; deneme < denemeSayisi; deneme++) {
             if (deneme > 0) {
-              await new Promise((r) => setTimeout(r, 350 * deneme));
+              await new Promise((r) => setTimeout(r, beklemeMs * deneme));
             }
             const { data } = await supabase
               .from("group_members")
@@ -148,15 +174,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (!uyeSatir) {
-            gruptanKoparildi = true;
-            effectiveGroupId = null;
-            grupKodu = null;
-            magazaAdi = "";
-            void supabase
-              .from("profiles")
-              .update({ group_id: null, onboarding_complete: false, magaza_adi: "" })
-              .eq("id", userId);
-            void supabase.auth.updateUser({ data: { onboarding_complete: false } });
+            if (secenek?.uyelikKontroluYumusak) {
+              effectiveGroupId = data.group_id ?? effectiveGroupId;
+            } else {
+              gruptanKoparildi = true;
+              effectiveGroupId = null;
+              grupKodu = null;
+              magazaAdi = "";
+              void supabase
+                .from("profiles")
+                .update({ group_id: null, onboarding_complete: false, magaza_adi: "" })
+                .eq("id", userId);
+              void supabase.auth.updateUser({ data: { onboarding_complete: false } });
+            }
           } else {
             const { data: grp } = await supabase
               .from("groups")
@@ -256,19 +286,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (sessErr && __DEV__) console.warn("[auth] getSession:", sessErr.message);
         setSession(s);
         if (s?.user) {
-          setUser(oturumdanAsgariProfil(s));
           void ensureProfile(s.user.id, s.user.email ?? "", s.user.user_metadata?.ad ?? "").catch((e) => {
             if (__DEV__) console.warn("[auth] ensureProfile:", e);
           });
-          if (!cancelled) setLoading(false);
-          void (async () => {
-            try {
-              const p = await fetchProfile(s.user.id, s.user.email ?? undefined, s);
-              if (!cancelled) setUser((prev) => profilBirlestir(prev, p));
-            } catch (e) {
-              if (__DEV__) console.warn("[auth] fetchProfile:", e);
+          try {
+            const cached = await profilCacheOku(s.user.id);
+            if (cached && !cancelled) setUser(cached);
+            const p = await fetchProfile(s.user.id, s.user.email ?? undefined, s, {
+              uyelikKontroluYumusak: true,
+            });
+            const merged = profilBirlestir(cached, p);
+            if (!cancelled) {
+              setUser(merged);
+              if (merged.onboardingComplete && merged.groupId) {
+                void profilCacheYaz(s.user.id, merged);
+              }
             }
-          })();
+          } catch (e) {
+            if (__DEV__) console.warn("[auth] fetchProfile:", e);
+            if (!cancelled) setUser(oturumdanAsgariProfil(s));
+          } finally {
+            if (!cancelled) setLoading(false);
+          }
         } else {
           setUser(null);
           if (!cancelled) setLoading(false);
@@ -299,8 +338,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         void (async () => {
           try {
-            const p = await fetchProfile(s.user.id, s.user.email ?? undefined, s);
-            setUser((prev) => profilBirlestir(prev, p));
+            const p = await fetchProfile(s.user.id, s.user.email ?? undefined, s, {
+              uyelikKontroluYumusak: true,
+            });
+            setUser((prev) => {
+              const m = profilBirlestir(prev, p);
+              if (m.onboardingComplete && m.groupId) void profilCacheYaz(s.user.id, m);
+              return m;
+            });
           } catch (e) {
             if (__DEV__) console.warn("[auth] fetchProfile (listener):", e);
           }
@@ -313,6 +358,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [fetchProfile, ensureProfile]);
+
+  /** Açılıştan sonra sert üyelik kontrolü (iOS ağ gecikmesi; Kurulum flaşını önler) */
+  useEffect(() => {
+    if (loading || !session?.user?.id) return;
+    let iptal = false;
+    const zamanlayici = setTimeout(() => {
+      void (async () => {
+        try {
+          const p = await fetchProfile(
+            session.user.id,
+            session.user.email ?? undefined,
+            session,
+            { uyelikKontroluYumusak: false },
+          );
+          if (iptal) return;
+          setUser((prev) => {
+            const m = profilBirlestir(prev, p);
+            if (m.onboardingComplete && m.groupId) void profilCacheYaz(session.user.id, m);
+            return m;
+          });
+        } catch (e) {
+          if (__DEV__) console.warn("[auth] fetchProfile (arka plan):", e);
+        }
+      })();
+    }, 2800);
+    return () => {
+      iptal = true;
+      clearTimeout(zamanlayici);
+    };
+  }, [loading, session, fetchProfile]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !session?.user?.id || !user?.groupId) {
@@ -395,7 +470,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfil = useCallback(async () => {
     if (!session?.user) return;
     const p = await fetchProfile(session.user.id, session.user.email ?? undefined, session);
-    setUser((prev) => profilBirlestir(prev, p));
+    setUser((prev) => {
+      const m = profilBirlestir(prev, p);
+      if (m.onboardingComplete && m.groupId) void profilCacheYaz(session.user.id, m);
+      return m;
+    });
   }, [session, fetchProfile]);
 
   const kurulumaSifirla = useCallback(() => {
@@ -436,6 +515,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const cikisYap = useCallback(async () => {
+    const uid = session?.user?.id;
     const CIKIS_MS = 6000;
     try {
       await Promise.race([
@@ -445,11 +525,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       if (__DEV__) console.warn("[auth] signOut:", e);
     } finally {
+      if (uid) void profilCacheSil(uid);
       setSifreKurtarmaBekliyor(false);
       setUser(null);
       setSession(null);
     }
-  }, []);
+  }, [session?.user?.id]);
 
   const profilTamamla = useCallback(async (magazaAdi: string, rol: TeamRole) => {
     if (!session?.user) {

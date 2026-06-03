@@ -1,5 +1,6 @@
 import "react-native-gesture-handler";
 import { LogBox, Platform, StyleSheet } from "react-native";
+import { UiScaleRoot } from "./src/components/UiScaleRoot";
 
 if (__DEV__) {
   LogBox.ignoreLogs([
@@ -38,21 +39,23 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider style={styles.root}>
-        <DelightProvider>
-          <ThemeProvider>
-            <UpdateProvider>
-              <AuthProvider>
-                <SohbetOkunmamisProvider>
-                  <ScheduleProvider>
-                    <NotificationProvider>
-                      <AppInner />
-                    </NotificationProvider>
-                  </ScheduleProvider>
-                </SohbetOkunmamisProvider>
-              </AuthProvider>
-            </UpdateProvider>
-          </ThemeProvider>
-        </DelightProvider>
+        <UiScaleRoot>
+          <DelightProvider>
+            <ThemeProvider>
+              <UpdateProvider>
+                <AuthProvider>
+                  <SohbetOkunmamisProvider>
+                    <ScheduleProvider>
+                      <NotificationProvider>
+                        <AppInner />
+                      </NotificationProvider>
+                    </ScheduleProvider>
+                  </SohbetOkunmamisProvider>
+                </AuthProvider>
+              </UpdateProvider>
+            </ThemeProvider>
+          </DelightProvider>
+        </UiScaleRoot>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

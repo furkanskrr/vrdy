@@ -64,6 +64,15 @@ type ChatListItem =
 
 type SabitOge = { pinId: string; messageId: string; ozet: GrupMesajiYanitOzet };
 
+function sabitTabloYokMesaji(msg: string): boolean {
+  return (
+    msg.includes("group_pinned_messages") ||
+    msg.includes("does not exist") ||
+    msg.includes("Could not find the table") ||
+    msg.includes("schema cache")
+  );
+}
+
 type OnayDurum =
   | { tur: "sabitle"; mesajId: string }
   | { tur: "kaldir"; pinId: string; mesajId: string };
@@ -643,6 +652,7 @@ export function GroupChatScreen() {
   const [onay, setOnay] = useState<OnayDurum | null>(null);
   const listRef = useRef<FlatList<ChatListItem>>(null);
   const ilkScroll = useRef(true);
+  const webBasiliTutZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sonOkumaGonderim = useRef(0);
   const sohbetOdaktaRef = useRef(false);
   const enSonMesajZamaniRef = useRef<string | null>(null);
@@ -698,7 +708,10 @@ export function GroupChatScreen() {
         msg.includes("does not exist") ||
         msg.includes("Could not find the table") ||
         msg.includes("schema cache");
-      if (!tabloYok && __DEV__) console.warn("[sohbet] sabitler:", msg);
+      if (!tabloYok) {
+        if (__DEV__) console.warn("[sohbet] sabitler:", msg);
+        else Alert.alert("Sabit duyurular", msg);
+      }
       if (tabloYok) {
         const pinRes = await supabase.from("groups").select("pinned_message_id").eq("id", gid).maybeSingle();
         if (!pinRes.error && pinRes.data) {
@@ -1100,12 +1113,35 @@ export function GroupChatScreen() {
     [listData]
   );
 
+  const sabitleLegacyGuncelle = useCallback(
+    async (mesajId: string) => {
+      if (!groupId) return false;
+      const { error } = await supabase
+        .from("groups")
+        .update({ pinned_message_id: mesajId })
+        .eq("id", groupId);
+      if (error) {
+        Alert.alert("Sabitleme", error.message);
+        return false;
+      }
+      await sabitleriYukle(groupId);
+      return true;
+    },
+    [groupId, sabitleriYukle]
+  );
+
   const sabitleEkleUygula = useCallback(
     async (mesajId: string) => {
-      if (!groupId || user?.rol !== "mudur") return;
+      if (!groupId || user?.rol !== "mudur") {
+        Alert.alert("Sabitleme", "Yalnızca müdür sabitleyebilir.");
+        return;
+      }
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess.session?.user?.id;
-      if (!uid) return;
+      if (!uid) {
+        Alert.alert("Sabitleme", "Oturum bulunamadı. Yeniden giriş yapın.");
+        return;
+      }
       const { error } = await supabase.from("group_pinned_messages").insert({
         group_id: groupId,
         message_id: mesajId,
@@ -1115,14 +1151,21 @@ export function GroupChatScreen() {
         const m = error.message ?? "";
         if (m.toLowerCase().includes("unique") || m.includes("duplicate")) {
           Alert.alert("Zaten sabitli", "Bu mesaj duyurularda zaten var.");
-        } else {
-          Alert.alert("Sabitleme", m);
+          return;
         }
+        if (sabitTabloYokMesaji(m)) {
+          await sabitleLegacyGuncelle(mesajId);
+          return;
+        }
+        Alert.alert(
+          "Sabitleme",
+          `${m}\n\nSupabase SQL Editor'de group_pinned_messages.sql dosyasını bir kez çalıştırın.`
+        );
         return;
       }
       await sabitleriYukle(groupId);
     },
-    [groupId, user?.rol, sabitleriYukle]
+    [groupId, user?.rol, sabitleriYukle, sabitleLegacyGuncelle]
   );
 
   const sabitleKaldirUygula = useCallback(
@@ -1283,6 +1326,32 @@ export function GroupChatScreen() {
             <Pressable
               onLongPress={() => setEylemMesaji(m)}
               delayLongPress={400}
+              {...(isWeb
+                ? {
+                    onContextMenu: (e: { preventDefault?: () => void }) => {
+                      e.preventDefault?.();
+                      setEylemMesaji(m);
+                    },
+                    onPointerDown: () => {
+                      if (webBasiliTutZamanlayici.current) {
+                        clearTimeout(webBasiliTutZamanlayici.current);
+                      }
+                      webBasiliTutZamanlayici.current = setTimeout(() => setEylemMesaji(m), 480);
+                    },
+                    onPointerUp: () => {
+                      if (webBasiliTutZamanlayici.current) {
+                        clearTimeout(webBasiliTutZamanlayici.current);
+                        webBasiliTutZamanlayici.current = null;
+                      }
+                    },
+                    onPointerLeave: () => {
+                      if (webBasiliTutZamanlayici.current) {
+                        clearTimeout(webBasiliTutZamanlayici.current);
+                        webBasiliTutZamanlayici.current = null;
+                      }
+                    },
+                  }
+                : {})}
               style={({ pressed }) => [
                 styles.bubble,
                 mine ? styles.bubbleMine : styles.bubbleOther,

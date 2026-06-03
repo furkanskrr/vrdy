@@ -15,9 +15,6 @@ export function ustEkranBoslugu(safeAreaTop: number, ekstra: number = 12): numbe
  * Alt sekme çubuğu olan ekranlarda (Sohbet vb.) composer alt boşluğu.
  * Tab bar zaten home indicator alanını kaplar; insets.bottom eklenirse çift boşluk oluşur.
  */
-/** Alt sekme — sistem geri/jest çubuğu ile çakışmayı önlemek için */
-export const ALT_TAB_PADDING = 3;
-
 export function altSekmeEkranBoslugu(_insetsBottom: number): number {
   /** Alt sekme zaten güvenli alanı kaplar; composer altında ekstra boşluk ekleme */
   if (Platform.OS === "web") return 0;

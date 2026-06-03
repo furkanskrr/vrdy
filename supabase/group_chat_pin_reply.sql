@@ -98,26 +98,23 @@ create trigger trg_group_messages_reply_check
   before insert or update of reply_to_id, group_id on public.group_messages
   for each row execute procedure public.group_messages_reply_same_group();
 
--- Müdür: yalnızca pinned_message_id güncelleyebilir (diğer sütunlara dokunulmaz)
+-- Grup üyesi: pinned_message_id güncelleyebilir (legacy tek sabit; trigger diğer sütunları korur)
 drop policy if exists "Mudur grup sabit mesajini guncelleyebilir" on public.groups;
-create policy "Mudur grup sabit mesajini guncelleyebilir"
+drop policy if exists "Grup uyesi sabit mesaj guncelleyebilir" on public.groups;
+create policy "Grup uyesi sabit mesaj guncelleyebilir"
   on public.groups for update
   using (
     id = public.current_profile_group_id()
     and exists (
       select 1 from public.profiles p
-      where p.id = auth.uid()
-        and p.group_id = groups.id
-        and p.rol = 'mudur'
+      where p.id = auth.uid() and p.group_id = groups.id
     )
   )
   with check (
     id = public.current_profile_group_id()
     and exists (
       select 1 from public.profiles p
-      where p.id = auth.uid()
-        and p.group_id = groups.id
-        and p.rol = 'mudur'
+      where p.id = auth.uid() and p.group_id = groups.id
     )
   );
 

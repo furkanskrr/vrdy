@@ -8,7 +8,6 @@ type MesajEylemAltSayfaProps = {
   gorunur: boolean;
   mesaj: GrupMesaji | null;
   colors: ThemeColors;
-  mudur: boolean;
   mesajSabitli: boolean;
   onKapat: () => void;
   onYanitla: () => void;
@@ -20,7 +19,6 @@ export function MesajEylemAltSayfa({
   gorunur,
   mesaj,
   colors,
-  mudur,
   mesajSabitli,
   onKapat,
   onYanitla,
@@ -53,31 +51,29 @@ export function MesajEylemAltSayfa({
             <Text style={st.satirText}>Yanıtla</Text>
           </Pressable>
 
-          {mudur ? (
-            mesajSabitli ? (
-              <Pressable
-                style={({ pressed }) => [st.satir, pressed && st.satirPressed]}
-                onPress={() => {
-                  onSabitleKaldirIste();
-                  onKapat();
-                }}
-              >
-                <Ionicons name="pin-outline" size={22} color={colors.afternoon} />
-                <Text style={[st.satirText, { color: colors.afternoon }]}>Sabitlemeyi kaldır</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                style={({ pressed }) => [st.satir, pressed && st.satirPressed]}
-                onPress={() => {
-                  onSabitleIste();
-                  onKapat();
-                }}
-              >
-                <Ionicons name="pin" size={22} color={colors.primary} />
-                <Text style={st.satirText}>Duyuruya sabitle</Text>
-              </Pressable>
-            )
-          ) : null}
+          {mesajSabitli ? (
+            <Pressable
+              style={({ pressed }) => [st.satir, pressed && st.satirPressed]}
+              onPress={() => {
+                onSabitleKaldirIste();
+                onKapat();
+              }}
+            >
+              <Ionicons name="pin-outline" size={22} color={colors.afternoon} />
+              <Text style={[st.satirText, { color: colors.afternoon }]}>Sabitlemeyi kaldır</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [st.satir, pressed && st.satirPressed]}
+              onPress={() => {
+                onSabitleIste();
+                onKapat();
+              }}
+            >
+              <Ionicons name="pin" size={22} color={colors.primary} />
+              <Text style={st.satirText}>Duyuruya sabitle</Text>
+            </Pressable>
+          )}
 
           <Pressable style={({ pressed }) => [st.satir, st.iptalSatir, pressed && st.satirPressed]} onPress={onKapat}>
             <Ionicons name="close-circle-outline" size={22} color={colors.textMuted} />

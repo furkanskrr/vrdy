@@ -1132,10 +1132,7 @@ export function GroupChatScreen() {
 
   const sabitleEkleUygula = useCallback(
     async (mesajId: string) => {
-      if (!groupId || user?.rol !== "mudur") {
-        Alert.alert("Sabitleme", "Yalnızca müdür sabitleyebilir.");
-        return;
-      }
+      if (!groupId) return;
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess.session?.user?.id;
       if (!uid) {
@@ -1159,18 +1156,18 @@ export function GroupChatScreen() {
         }
         Alert.alert(
           "Sabitleme",
-          `${m}\n\nSupabase SQL Editor'de group_pinned_messages.sql dosyasını bir kez çalıştırın.`
+          `${m}\n\nSupabase SQL Editor'de group_pinned_all_members.sql dosyasını bir kez çalıştırın.`
         );
         return;
       }
       await sabitleriYukle(groupId);
     },
-    [groupId, user?.rol, sabitleriYukle, sabitleLegacyGuncelle]
+    [groupId, sabitleriYukle, sabitleLegacyGuncelle]
   );
 
   const sabitleKaldirUygula = useCallback(
     async (pinId: string) => {
-      if (!groupId || user?.rol !== "mudur") return;
+      if (!groupId) return;
       if (pinId === "legacy") {
         const { error } = await supabase.from("groups").update({ pinned_message_id: null }).eq("id", groupId);
         if (error) Alert.alert("Sabitleme", error.message);
@@ -1185,7 +1182,7 @@ export function GroupChatScreen() {
       if (error) Alert.alert("Sabitleme", error.message);
       else await sabitleriYukle(groupId);
     },
-    [groupId, user?.rol, sabitleriYukle]
+    [groupId, sabitleriYukle]
   );
 
   const sabitMesajIdleri = useMemo(() => new Set(sabitler.map((s) => s.messageId)), [sabitler]);
@@ -1602,17 +1599,15 @@ export function GroupChatScreen() {
                         </Text>
                       </View>
                     </Pressable>
-                    {user?.rol === "mudur" ? (
-                      <Pressable
-                        style={styles.sabitKaldir}
-                        onPress={() =>
-                          setOnay({ tur: "kaldir", pinId: aktif.pinId, mesajId: aktif.messageId })
-                        }
-                        accessibilityLabel="Bu sabitlemeyi kaldır"
-                      >
-                        <Text style={styles.sabitKaldirText}>Kaldır</Text>
-                      </Pressable>
-                    ) : null}
+                    <Pressable
+                      style={styles.sabitKaldir}
+                      onPress={() =>
+                        setOnay({ tur: "kaldir", pinId: aktif.pinId, mesajId: aktif.messageId })
+                      }
+                      accessibilityLabel="Bu sabitlemeyi kaldır"
+                    >
+                      <Text style={styles.sabitKaldirText}>Kaldır</Text>
+                    </Pressable>
                   </View>
                 </View>
               );
@@ -1676,7 +1671,6 @@ export function GroupChatScreen() {
         gorunur={eylemMesaji !== null}
         mesaj={eylemMesaji}
         colors={colors}
-        mudur={user?.rol === "mudur"}
         mesajSabitli={eylemMesaji ? sabitMesajIdleri.has(eylemMesaji.id) : false}
         onKapat={() => setEylemMesaji(null)}
         onYanitla={() => {

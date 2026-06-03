@@ -39,12 +39,14 @@ alter table public.group_pinned_messages enable row level security;
 drop policy if exists "Grup sabit mesajlari okunur" on public.group_pinned_messages;
 drop policy if exists "Mudur sabit mesaj ekler" on public.group_pinned_messages;
 drop policy if exists "Mudur sabit mesaj siler" on public.group_pinned_messages;
+drop policy if exists "Grup uyesi sabit mesaj ekler" on public.group_pinned_messages;
+drop policy if exists "Grup uyesi sabit mesaj siler" on public.group_pinned_messages;
 
 create policy "Grup sabit mesajlari okunur"
   on public.group_pinned_messages for select
   using (group_id = public.current_profile_group_id());
 
-create policy "Mudur sabit mesaj ekler"
+create policy "Grup uyesi sabit mesaj ekler"
   on public.group_pinned_messages for insert
   with check (
     group_id = public.current_profile_group_id()
@@ -52,19 +54,17 @@ create policy "Mudur sabit mesaj ekler"
     and exists (
       select 1 from public.profiles p
       where p.id = auth.uid()
-        and p.rol = 'mudur'
         and p.group_id = group_pinned_messages.group_id
     )
   );
 
-create policy "Mudur sabit mesaj siler"
+create policy "Grup uyesi sabit mesaj siler"
   on public.group_pinned_messages for delete
   using (
     group_id = public.current_profile_group_id()
     and exists (
       select 1 from public.profiles p
       where p.id = auth.uid()
-        and p.rol = 'mudur'
         and p.group_id = group_pinned_messages.group_id
     )
   );

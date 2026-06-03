@@ -24,7 +24,7 @@ import { playDelightFeedback } from "../lib/delight/feedback";
 import { useAuth } from "../context/AuthContext";
 import { useSohbetOkunmamis } from "../context/SohbetOkunmamisContext";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
-import { ustEkranBoslugu } from "../lib/safeArea";
+import { altSekmeEkranBoslugu, ustEkranBoslugu } from "../lib/safeArea";
 import type { GrupMesaji, GrupMesajiYanitOzet, TeamRole } from "../types";
 
 function uyeRolParse(r: unknown): TeamRole {
@@ -39,8 +39,14 @@ const SAYFA_LIMIT = 120;
  * Geriye doğru uzun tolerans OLMAMALI: aksi halde mesajdan önce sohbeti açan da «gördü» sayılıyordu.
  */
 const OKUMA_SAAT_KAYMA_MS = 4_000;
+/** Aynı oturumda okuma kaydı spam’ini önler; zorla çağrılarda atlanır */
+const OKUMA_GUNCELLE_MIN_MS = 350;
 const R_BUYUK = 18;
 const R_KUCUK = 6;
+/** Karşı taraf mesajlarında avatar + hizalama boşluğu (sabit genişlik) */
+const AVATAR_KOL_GENISLIK = 36;
+/** Uzun metinlerde satır kırılımı; kısa mesajda balon metne göre daralır */
+const BALON_MAX_GENISLIK = 300;
 
 type ChatListItem =
   | { type: "date"; id: string; label: string }
@@ -194,16 +200,30 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     mainColumn: { flex: 1 },
     chatPane: { flex: 1, backgroundColor: chatBg },
     listWrap: { flex: 1 },
-    listContent: { paddingTop: 12, paddingBottom: 16, flexGrow: 1 },
+    listContent: { paddingTop: 6, paddingBottom: 8, flexGrow: 1 },
     composerDock: {
-      paddingHorizontal: 14,
-      paddingTop: 10,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      backgroundColor: colors.surface,
+      paddingHorizontal: 12,
+      paddingTop: 6,
+      backgroundColor: "transparent",
+    },
+    composerPill: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 6,
+      minHeight: 44,
+      maxHeight: 120,
+      borderRadius: 22,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      backgroundColor: isDark ? colors.surface : "#ffffff",
+      paddingLeft: 14,
+      paddingRight: 5,
+      paddingVertical: 5,
+      overflow: "hidden",
+      alignSelf: "stretch",
     },
 
-    dateRow: { alignItems: "center", marginVertical: 14 },
+    dateRow: { alignItems: "center", marginVertical: 8 },
     datePill: {
       paddingHorizontal: 14,
       paddingVertical: 5,
@@ -214,61 +234,71 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     datePillText: { fontSize: 11, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.2 },
 
-    msgRow: { flexDirection: "row", paddingHorizontal: 14, marginBottom: 2 },
-    msgRowClusterBas: { marginTop: 10 },
+    msgRow: { flexDirection: "row", paddingHorizontal: 10, marginBottom: 1 },
+    msgRowClusterBas: { marginTop: 4 },
     msgRowMine: { justifyContent: "flex-end" },
-    msgRowOther: { justifyContent: "flex-start", alignItems: "flex-end" },
-    avatarSlot: { width: 36, marginRight: 8, alignItems: "center" },
+    msgRowOther: { justifyContent: "flex-start", alignItems: "flex-start" },
+    avatarKolon: {
+      width: AVATAR_KOL_GENISLIK,
+      marginRight: 6,
+      alignItems: "center",
+      flexShrink: 0,
+    },
+    avatarHizala: {},
+    avatarHizalaIsimli: { marginTop: 20 },
     avatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 11,
+      width: 28,
+      height: 28,
+      borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
-      ...bubbleShadow,
     },
-    avatarTxt: { fontSize: 11, fontWeight: "800", color: "#fff" },
-    bubbleCol: { maxWidth: "78%", position: "relative" },
+    avatarTxt: { fontSize: 10, fontWeight: "800", color: "#fff" },
+    bubbleCol: { minWidth: 0 },
+    bubbleColOther: { alignSelf: "flex-start", alignItems: "flex-start", flexShrink: 1, maxWidth: "88%" },
+    bubbleColMine: { alignSelf: "flex-end", alignItems: "flex-end", flexShrink: 1, maxWidth: "88%" },
     gonderAd: {
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: "800",
       color: colors.primary,
-      marginBottom: 4,
-      marginLeft: 4,
+      marginBottom: 2,
+      marginLeft: 2,
     },
     bubble: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      maxWidth: "100%",
-      ...bubbleShadow,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+      paddingBottom: 6,
+      alignSelf: "flex-start",
+      maxWidth: BALON_MAX_GENISLIK,
     },
     bubbleMine: {
       backgroundColor: colors.primary,
+      alignSelf: "flex-end",
     },
     bubbleOther: {
       backgroundColor: isDark ? colors.surface : "#ffffff",
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: isDark ? colors.border : "rgba(45, 58, 71, 0.12)",
+      alignSelf: "flex-start",
     },
-    body: { fontSize: 15, color: colors.text, lineHeight: 21 },
+    body: { fontSize: 14, color: colors.text, lineHeight: 19 },
     bodyMine: { color: "#fff" },
-    footerSatir: {
+    bodySatir: {
       flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "flex-end",
       flexWrap: "wrap",
-      gap: 4,
-      marginTop: 4,
+      alignItems: "flex-end",
+      columnGap: 6,
+      rowGap: 2,
     },
-    zaman: { fontSize: 10, fontWeight: "500" },
-    zamanMine: { color: "rgba(255,255,255,0.85)" },
+    bodyMetin: { flexShrink: 1 },
+    zaman: { fontSize: 10, fontWeight: "600", lineHeight: 14, marginBottom: 1 },
+    zamanMine: { color: "rgba(255,255,255,0.78)" },
     zamanOther: { color: colors.textMuted },
     okumaOzeti: {
       alignSelf: "flex-end",
       maxWidth: "100%",
-      marginTop: 3,
-      marginRight: 2,
-      paddingHorizontal: 2,
+      marginTop: 2,
+      marginRight: 1,
     },
     okumaIsimleri: {
       fontSize: 10,
@@ -328,54 +358,35 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     yukleText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
 
-    composerIc: {
-      flexDirection: "row",
-      alignItems: "flex-end",
-      gap: 8,
-      alignSelf: "stretch",
-      minHeight: 48,
-      maxHeight: 148,
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: isDark ? colors.surface2 : "#f8fafc",
-      paddingLeft: 16,
-      paddingRight: 6,
-      paddingVertical: 6,
-      overflow: "hidden",
-    },
     input: {
       flex: 1,
-      minHeight: 36,
-      maxHeight: 112,
-      paddingTop: Platform.OS === "ios" ? 8 : 6,
-      paddingBottom: Platform.OS === "ios" ? 8 : 6,
-      fontSize: 16,
+      minHeight: 22,
+      maxHeight: 96,
+      paddingVertical: Platform.OS === "ios" ? 6 : 4,
+      paddingHorizontal: 0,
+      fontSize: 15,
       color: colors.text,
-      lineHeight: 22,
+      lineHeight: 20,
     },
     gonderBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
       backgroundColor: colors.primary,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 1,
-      ...bubbleShadow,
+      flexShrink: 0,
     },
     gonderBtnDisabled: {
-      opacity: 0.38,
-      backgroundColor: colors.surface2,
+      opacity: 0.35,
+      backgroundColor: colors.border,
     },
     sayacSatir: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "flex-end",
-      marginTop: 4,
-      paddingHorizontal: 2,
-      minHeight: 14,
-      backgroundColor: "transparent",
+      marginTop: 2,
+      paddingHorizontal: 4,
     },
     sayac: {
       fontSize: 11,
@@ -390,8 +401,8 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     hata: {
       color: colors.danger,
       fontSize: 11,
-      paddingHorizontal: 2,
-      paddingBottom: 6,
+      paddingHorizontal: 4,
+      paddingBottom: 4,
       fontWeight: "600",
     },
 
@@ -410,7 +421,7 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       backgroundColor: colors.primaryMuted + "44",
       borderColor: colors.primary + "55",
     },
-    sabitBolum: { marginHorizontal: 14, marginTop: 10, marginBottom: 4 },
+    sabitBolum: { marginHorizontal: 10, marginTop: 6, marginBottom: 2 },
     sabitKart: {
       flexDirection: "row",
       alignItems: "stretch",
@@ -462,17 +473,19 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     },
     sabitKaldirText: { fontSize: 12, fontWeight: "800", color: colors.afternoon },
     sabitMsgBadge: {
-      position: "absolute",
-      top: 2,
-      right: 4,
-      zIndex: 1,
-      opacity: 0.9,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginBottom: 4,
+      opacity: 0.92,
     },
+    sabitMsgBadgeTxt: { fontSize: 10, fontWeight: "700", color: colors.primary },
+    sabitMsgBadgeTxtMine: { color: "rgba(255,255,255,0.9)" },
     alintiKutu: {
       borderLeftWidth: 3,
       borderLeftColor: "rgba(255,255,255,0.45)",
       paddingLeft: 8,
-      marginBottom: 6,
+      marginBottom: 4,
       opacity: 0.95,
     },
     alintiKutuOther: {
@@ -488,28 +501,20 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
     yanitBant: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      marginBottom: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 14,
+      gap: 8,
+      marginBottom: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 10,
       backgroundColor: isDark ? colors.surface2 : "#f1f5f9",
-      borderWidth: 1,
       borderLeftWidth: 3,
-      borderColor: colors.border,
       borderLeftColor: colors.primary,
+      alignSelf: "stretch",
     },
     yanitBantMetin: { flex: 1, minWidth: 0 },
-    yanitBantBaslik: { fontSize: 11, fontWeight: "800", color: colors.primary, letterSpacing: 0.2 },
-    yanitBantOz: { fontSize: 13, color: colors.textMuted, marginTop: 3, lineHeight: 18 },
-    yanitBantKapat: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surface,
-    },
+    yanitBantBaslik: { fontSize: 10, fontWeight: "800", color: colors.primary },
+    yanitBantOz: { fontSize: 12, color: colors.textMuted, marginTop: 1, lineHeight: 16 },
+    yanitBantKapat: { padding: 4 },
   });
 }
 
@@ -633,6 +638,8 @@ export function GroupChatScreen() {
   const listRef = useRef<FlatList<ChatListItem>>(null);
   const ilkScroll = useRef(true);
   const sonOkumaGonderim = useRef(0);
+  const sohbetOdaktaRef = useRef(false);
+  const enSonMesajZamaniRef = useRef<string | null>(null);
 
   const uyelerVeOkumalariYukle = useCallback(async (gid: string, benimId: string | null) => {
     const uyeRes = await supabase.from("group_members").select("profile_id, ad, rol").eq("group_id", gid);
@@ -828,34 +835,61 @@ export function GroupChatScreen() {
     void uyelerVeOkumalariYukle(groupId, benimId);
   }, [groupId, uidHook, uyelerVeOkumalariYukle, sabitleriYukle]);
 
-  const sonOkumayiGuncelle = useCallback(async () => {
-    if (!isSupabaseConfigured || !groupId || !okumaDestegi) return;
-    const now = Date.now();
-    if (now - sonOkumaGonderim.current < 8000) return;
-    sonOkumaGonderim.current = now;
-
-    const { data: sess } = await supabase.auth.getSession();
-    const uid = sess.session?.user?.id;
-    if (!uid) return;
-
-    const { error } = await supabase.from("group_chat_reads").upsert(
-      { group_id: groupId, profile_id: uid, last_read_at: new Date().toISOString() },
-      { onConflict: "group_id,profile_id" }
-    );
-    if (error) {
-      const msg = error.message ?? "";
-      if (
-        msg.includes("does not exist") ||
-        msg.includes("group_chat_reads") ||
-        msg.includes("Could not find the table")
-      ) {
-        setOkumaDestegi(false);
-      } else if (__DEV__) console.warn("[sohbet] okuma güncelle:", msg);
-      return;
+  const okumalariSunucudanCek = useCallback(async (gid: string) => {
+    const readRes = await supabase.from("group_chat_reads").select("profile_id, last_read_at").eq("group_id", gid);
+    if (readRes.error) return;
+    const m: Record<string, string> = {};
+    for (const row of readRes.data as { profile_id: string; last_read_at: string }[]) {
+      m[row.profile_id] = row.last_read_at;
     }
-    const iso = new Date().toISOString();
-    setOkumalar((prev) => ({ ...prev, [uid]: iso }));
-  }, [groupId, okumaDestegi]);
+    setOkumalar(m);
+  }, []);
+
+  const sonOkumayiGuncelle = useCallback(
+    async (opts?: { zorla?: boolean }) => {
+      if (!isSupabaseConfigured || !groupId || !okumaDestegi) return;
+      const zorla = opts?.zorla === true;
+      const now = Date.now();
+      if (!zorla && now - sonOkumaGonderim.current < OKUMA_GUNCELLE_MIN_MS) return;
+      sonOkumaGonderim.current = now;
+
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess.session?.user?.id;
+      if (!uid) return;
+
+      let okumaIso = new Date().toISOString();
+      const enSon = enSonMesajZamaniRef.current;
+      if (enSon) {
+        const msgMs = new Date(enSon).getTime();
+        if (!Number.isNaN(msgMs)) {
+          okumaIso = new Date(Math.max(Date.now(), msgMs + 500)).toISOString();
+        }
+      }
+
+      const { error } = await supabase.from("group_chat_reads").upsert(
+        { group_id: groupId, profile_id: uid, last_read_at: okumaIso },
+        { onConflict: "group_id,profile_id" }
+      );
+      if (error) {
+        const msg = error.message ?? "";
+        if (
+          msg.includes("does not exist") ||
+          msg.includes("group_chat_reads") ||
+          msg.includes("Could not find the table")
+        ) {
+          setOkumaDestegi(false);
+        } else if (__DEV__) console.warn("[sohbet] okuma güncelle:", msg);
+        return;
+      }
+      setOkumalar((prev) => ({ ...prev, [uid]: okumaIso }));
+    },
+    [groupId, okumaDestegi]
+  );
+
+  const gorulduOlarakIsaretle = useCallback(() => {
+    sonOkumaGonderim.current = 0;
+    void sonOkumayiGuncelle({ zorla: true });
+  }, [sonOkumayiGuncelle]);
 
   const yenile = useCallback(async () => {
     if (!groupId || yukleniyor) return;
@@ -891,17 +925,36 @@ export function GroupChatScreen() {
   useFocusEffect(
     useCallback(() => {
       sohbetEkraniOdaktaAyarla(true);
-      sonOkumaGonderim.current = 0;
-      void (async () => {
-        await sonOkumayiGuncelle();
-        await okunmamisYenile();
-      })();
+      sohbetOdaktaRef.current = true;
+      gorulduOlarakIsaretle();
+      void okunmamisYenile();
       return () => {
+        sohbetOdaktaRef.current = false;
         sohbetEkraniOdaktaAyarla(false);
+        gorulduOlarakIsaretle();
         void okunmamisYenile();
       };
-    }, [sohbetEkraniOdaktaAyarla, sonOkumayiGuncelle, okunmamisYenile])
+    }, [sohbetEkraniOdaktaAyarla, gorulduOlarakIsaretle, okunmamisYenile])
   );
+
+  useEffect(() => {
+    enSonMesajZamaniRef.current = mesajlar[0]?.created_at ?? null;
+  }, [mesajlar]);
+
+  useEffect(() => {
+    if (!groupId || !okumaDestegi || yukleniyor) return;
+    if (!sohbetOdaktaRef.current || mesajlar.length === 0) return;
+    gorulduOlarakIsaretle();
+  }, [groupId, okumaDestegi, yukleniyor, mesajlar.length, mesajlar[0]?.id, gorulduOlarakIsaretle]);
+
+  useEffect(() => {
+    if (!groupId || !okumaDestegi) return;
+    const t = setInterval(() => {
+      if (!sohbetOdaktaRef.current) return;
+      void okumalariSunucudanCek(groupId);
+    }, 2500);
+    return () => clearInterval(t);
+  }, [groupId, okumaDestegi, okumalariSunucudanCek]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !groupId) return;
@@ -919,6 +972,10 @@ export function GroupChatScreen() {
         (payload) => {
           const row = payload.new as GrupMesaji;
           if (!row?.id) return;
+          const benimId = benimProfilId ?? uidHook;
+          if (row.profile_id !== benimId && sohbetOdaktaRef.current) {
+            gorulduOlarakIsaretle();
+          }
           setMesajlar((prev) => {
             if (prev.some((m) => m.id === row.id)) return prev;
             let enriched: GrupMesaji = { ...row };
@@ -962,7 +1019,7 @@ export function GroupChatScreen() {
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [groupId]);
+  }, [groupId, benimProfilId, uidHook, gorulduOlarakIsaretle]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !groupId) return;
@@ -1002,7 +1059,7 @@ export function GroupChatScreen() {
           filter: `group_id=eq.${groupId}`,
         },
         (payload) => {
-          const n = payload.new as { profile_id?: string; last_read_at?: string } | null;
+          const n = (payload.new ?? payload.old) as { profile_id?: string; last_read_at?: string } | null;
           const pid = n?.profile_id;
           const ts = n?.last_read_at;
           if (pid && ts) {
@@ -1149,8 +1206,7 @@ export function GroupChatScreen() {
         hapticsEnabled: delight.uiHapticsEnabled,
         soundsEnabled: delight.uiSoundsEnabled,
       });
-      sonOkumaGonderim.current = 0;
-      void sonOkumayiGuncelle();
+      gorulduOlarakIsaretle();
       void uyelerVeOkumalariYukle(groupId, uid);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } finally {
@@ -1201,22 +1257,19 @@ export function GroupChatScreen() {
           ]}
         >
           {!mine ? (
-            <View style={styles.avatarSlot}>
+            <View style={styles.avatarKolon}>
               {showAvatar ? (
-                <View style={[styles.avatar, { backgroundColor: avatarRenk(m.sender_ad, colors) }]}>
-                  <Text style={styles.avatarTxt}>{basHarfler(m.sender_ad)}</Text>
+                <View style={[styles.avatarHizala, showName ? styles.avatarHizalaIsimli : null]}>
+                  <View style={[styles.avatar, { backgroundColor: avatarRenk(m.sender_ad, colors) }]}>
+                    <Text style={styles.avatarTxt}>{basHarfler(m.sender_ad)}</Text>
+                  </View>
                 </View>
               ) : null}
             </View>
           ) : null}
-          <View style={styles.bubbleCol}>
-            {sabitMesajIdleri.has(m.id) ? (
-              <View style={styles.sabitMsgBadge}>
-                <Ionicons name="pin" size={14} color={colors.primary} />
-              </View>
-            ) : null}
+          <View style={[styles.bubbleCol, mine ? styles.bubbleColMine : styles.bubbleColOther]}>
             {showName ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 1 }}>
                 <Text style={styles.gonderAd}>{m.sender_ad}</Text>
                 <RolRozeti rol={uyeRolleri[m.profile_id] ?? "personel"} size="sm" />
               </View>
@@ -1231,6 +1284,16 @@ export function GroupChatScreen() {
                 pressed ? { opacity: 0.92 } : null,
               ]}
             >
+              {sabitMesajIdleri.has(m.id) ? (
+                <View style={styles.sabitMsgBadge}>
+                  <Ionicons
+                    name="pin"
+                    size={12}
+                    color={mine ? "rgba(255,255,255,0.9)" : colors.primary}
+                  />
+                  <Text style={[styles.sabitMsgBadgeTxt, mine && styles.sabitMsgBadgeTxtMine]}>Sabit</Text>
+                </View>
+              ) : null}
               {m.reply_parent ? (
                 <View style={[styles.alintiKutu, !mine && styles.alintiKutuOther]}>
                   <Text
@@ -1247,9 +1310,11 @@ export function GroupChatScreen() {
                   </Text>
                 </View>
               ) : null}
-              <Text style={[styles.body, mine && styles.bodyMine]}>{m.body}</Text>
-              <View style={styles.footerSatir}>
-                <Text style={[styles.zaman, mine ? styles.zamanMine : styles.zamanOther]}>{saatKisa(m.created_at)}</Text>
+              <View style={styles.bodySatir}>
+                <Text style={[styles.body, styles.bodyMetin, mine && styles.bodyMine]}>{m.body}</Text>
+                <Text style={[styles.zaman, mine ? styles.zamanMine : styles.zamanOther]}>
+                  {saatKisa(m.created_at)}
+                </Text>
               </View>
             </Pressable>
             {mine &&
@@ -1306,7 +1371,7 @@ export function GroupChatScreen() {
     );
   }
 
-  const altPad = Math.max(10, insets.bottom);
+  const composerAltPad = altSekmeEkranBoslugu(insets.bottom);
 
   return (
     <KeyboardAvoidingView
@@ -1454,27 +1519,28 @@ export function GroupChatScreen() {
           )}
         </View>
 
-        <View style={[styles.composerDock, { paddingBottom: altPad }]}>
+        <View style={[styles.composerDock, { paddingBottom: composerAltPad }]}>
           {hata ? <Text style={styles.hata}>{hata}</Text> : null}
           {yanitHedef ? (
             <View style={styles.yanitBant}>
               <View style={styles.yanitBantMetin}>
-                <Text style={styles.yanitBantBaslik}>Yanıtlanıyor</Text>
-                <Text style={styles.yanitBantOz} numberOfLines={2}>
-                  {yanitHedef.sender_ad}: {alintiOzetKisalt(yanitHedef.body, 90)}
+                <Text style={styles.yanitBantBaslik}>Yanıt · {yanitHedef.sender_ad}</Text>
+                <Text style={styles.yanitBantOz} numberOfLines={1}>
+                  {alintiOzetKisalt(yanitHedef.body, 72)}
                 </Text>
               </View>
               <Pressable
                 style={styles.yanitBantKapat}
                 onPress={() => setYanitHedef(null)}
+                hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Yanıtı iptal et"
               >
-                <Ionicons name="close" size={22} color={colors.textMuted} />
+                <Ionicons name="close-circle" size={20} color={colors.textMuted} />
               </Pressable>
             </View>
           ) : null}
-          <View style={styles.composerIc}>
+          <View style={styles.composerPill}>
             <TextInput
               style={styles.input}
               placeholder="Mesaj yazın…"
@@ -1484,7 +1550,7 @@ export function GroupChatScreen() {
               multiline
               maxLength={MESAJ_UZUNLUK_MAX}
               editable={!gonderiliyor && !!groupId}
-              textAlignVertical="top"
+              textAlignVertical="center"
               underlineColorAndroid="transparent"
               onFocus={() => requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }))}
             />
@@ -1502,16 +1568,13 @@ export function GroupChatScreen() {
               {gonderiliyor ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Ionicons name="arrow-up" size={20} color="#fff" />
+                <Ionicons name="arrow-up" size={16} color="#fff" />
               )}
             </Pressable>
           </View>
-          {taslak.length > 0 ? (
+          {kalanKarakter < 80 ? (
             <View style={styles.sayacSatir}>
-              <Text style={[styles.sayac, kalanKarakter < 80 && styles.sayacUyari]}>
-                {taslak.length.toLocaleString("tr-TR")} / {MESAJ_UZUNLUK_MAX.toLocaleString("tr-TR")}
-                {kalanKarakter < 80 ? ` · kalan ${kalanKarakter}` : ""}
-              </Text>
+              <Text style={[styles.sayac, styles.sayacUyari]}>Kalan {kalanKarakter} karakter</Text>
             </View>
           ) : null}
         </View>

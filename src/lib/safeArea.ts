@@ -10,3 +10,12 @@ export function ustEkranBoslugu(safeAreaTop: number, ekstra: number = 12): numbe
   const webEkstra = Platform.OS === "web" ? Math.min(ekstra, 8) : ekstra;
   return Math.max(safeAreaTop, androidStatus) + webEkstra;
 }
+
+/**
+ * Alt sekme çubuğu olan ekranlarda (Sohbet vb.) composer alt boşluğu.
+ * Tab bar zaten home indicator alanını kaplar; insets.bottom eklenirse çift boşluk oluşur.
+ */
+export function altSekmeEkranBoslugu(insetsBottom: number): number {
+  if (Platform.OS === "web") return Math.max(6, insetsBottom);
+  return 8;
+}

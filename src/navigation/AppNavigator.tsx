@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useEffect, useState } from "react";
 import { Linking, View } from "react-native";
+import { ALT_TAB_PADDING } from "../lib/safeArea";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -132,6 +133,7 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
+          paddingBottom: ALT_TAB_PADDING,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,

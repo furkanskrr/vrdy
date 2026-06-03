@@ -743,26 +743,8 @@ export function GroupChatScreen() {
     }
 
     const satirlar = (pinMulti.data ?? []) as { id: string; message_id: string }[];
+    /** Çoklu tablo boşsa sabit yok; eski groups.pinned_message_id yedek göstermesin (kaldırınca diğer cihazlarda hayalet sabit) */
     if (satirlar.length === 0) {
-      const pinRes = await supabase.from("groups").select("pinned_message_id").eq("id", gid).maybeSingle();
-      const pid =
-        !pinRes.error && pinRes.data
-          ? ((pinRes.data as { pinned_message_id?: string | null }).pinned_message_id ?? null)
-          : null;
-      if (pid) {
-        const pinMsg = await supabase
-          .from("group_messages")
-          .select("id, sender_ad, body, created_at")
-          .eq("id", pid)
-          .eq("group_id", gid)
-          .maybeSingle();
-        if (!pinMsg.error && pinMsg.data) {
-          setSabitler([
-            { pinId: "legacy", messageId: pid, ozet: pinMsg.data as GrupMesajiYanitOzet },
-          ]);
-          return;
-        }
-      }
       setSabitler([]);
       return;
     }
@@ -1057,6 +1039,20 @@ export function GroupChatScreen() {
           void sabitleriYukle(groupId);
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "groups",
+          filter: `id=eq.${groupId}`,
+        },
+        (payload) => {
+          const eski = (payload.old as { pinned_message_id?: string | null } | undefined)?.pinned_message_id;
+          const yeni = (payload.new as { pinned_message_id?: string | null } | undefined)?.pinned_message_id;
+          if (eski !== yeni) void sabitleriYukle(groupId);
+        }
+      )
       .subscribe();
 
     return () => {
@@ -1113,6 +1109,11 @@ export function GroupChatScreen() {
     [listData]
   );
 
+  const sabitleLegacyTemizle = useCallback(async () => {
+    if (!groupId) return;
+    await supabase.from("groups").update({ pinned_message_id: null }).eq("id", groupId);
+  }, [groupId]);
+
   const sabitleLegacyGuncelle = useCallback(
     async (mesajId: string) => {
       if (!groupId) return false;
@@ -1160,27 +1161,38 @@ export function GroupChatScreen() {
         );
         return;
       }
+      await sabitleLegacyTemizle();
       await sabitleriYukle(groupId);
     },
-    [groupId, sabitleriYukle, sabitleLegacyGuncelle]
+    [groupId, sabitleriYukle, sabitleLegacyGuncelle, sabitleLegacyTemizle]
   );
 
   const sabitleKaldirUygula = useCallback(
-    async (pinId: string) => {
+    async (pinId: string, mesajId?: string) => {
       if (!groupId) return;
-      if (pinId === "legacy") {
-        const { error } = await supabase.from("groups").update({ pinned_message_id: null }).eq("id", groupId);
-        if (error) Alert.alert("Sabitleme", error.message);
-        else await sabitleriYukle(groupId);
+      if (pinId !== "legacy") {
+        const { error } = await supabase
+          .from("group_pinned_messages")
+          .delete()
+          .eq("id", pinId)
+          .eq("group_id", groupId);
+        if (error) {
+          Alert.alert("Sabitleme", error.message);
+          return;
+        }
+      }
+      const { error: legacyErr } = await supabase
+        .from("groups")
+        .update({ pinned_message_id: null })
+        .eq("id", groupId);
+      if (legacyErr) {
+        Alert.alert("Sabitleme", legacyErr.message);
         return;
       }
-      const { error } = await supabase
-        .from("group_pinned_messages")
-        .delete()
-        .eq("id", pinId)
-        .eq("group_id", groupId);
-      if (error) Alert.alert("Sabitleme", error.message);
-      else await sabitleriYukle(groupId);
+      setSabitler((prev) =>
+        prev.filter((s) => s.pinId !== pinId && (mesajId == null || s.messageId !== mesajId))
+      );
+      await sabitleriYukle(groupId);
     },
     [groupId, sabitleriYukle]
   );
@@ -1700,7 +1712,7 @@ export function GroupChatScreen() {
         onOnay={async () => {
           if (!onay) return;
           if (onay.tur === "sabitle") await sabitleEkleUygula(onay.mesajId);
-          else await sabitleKaldirUygula(onay.pinId);
+          else await sabitleKaldirUygula(onay.pinId, onay.mesajId);
         }}
         onIptal={() => setOnay(null)}
       />

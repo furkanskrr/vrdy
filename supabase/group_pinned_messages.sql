@@ -34,6 +34,8 @@ create trigger trg_group_pinned_same_group
   before insert or update of message_id, group_id on public.group_pinned_messages
   for each row execute procedure public.group_pinned_message_same_group();
 
+alter table public.group_pinned_messages replica identity full;
+
 alter table public.group_pinned_messages enable row level security;
 
 drop policy if exists "Grup sabit mesajlari okunur" on public.group_pinned_messages;

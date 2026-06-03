@@ -1156,7 +1156,7 @@ export function GroupChatScreen() {
         }
         Alert.alert(
           "Sabitleme",
-          `${m}\n\nSupabase SQL Editor'de group_pinned_all_members.sql dosyasını bir kez çalıştırın.`
+          `${m}\n\nSupabase SQL Editor'de group_pinned_messages.sql dosyasını bir kez çalıştırın.`
         );
         return;
       }

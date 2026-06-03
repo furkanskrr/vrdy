@@ -29,10 +29,11 @@ create policy "Grup uyesi sabit mesaj siler"
     )
   );
 
+-- Eski tek-sütun sabitleme (legacy) — grup üyesi güncelleyebilir
 drop policy if exists "Mudur grup sabit mesajini guncelleyebilir" on public.groups;
-drop policy if exists "Grup uyesi sabit mesaj guncelleyebilir" on public.groups;
+drop policy if exists "Grup uyesi sabit mesajini guncelleyebilir" on public.groups;
 
-create policy "Grup uyesi sabit mesaj guncelleyebilir"
+create policy "Grup uyesi sabit mesajini guncelleyebilir"
   on public.groups for update
   using (
     id = public.current_profile_group_id()

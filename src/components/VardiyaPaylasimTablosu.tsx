@@ -5,10 +5,6 @@ import { vardiyaEtiket, vardiyaHucreAltMetin, vardiyaRenk } from "../lib/vardiya
 import type { ShiftKind, TeamMember } from "../types";
 
 const GUN_KISA = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pa"];
-const ISIM_GEN = 128;
-const GUN_GEN = 78;
-const SATIR_YUK = 58;
-const BASLIK_YUK = 68;
 
 type Satir = { uye: TeamMember; gunler: (ShiftKind | undefined)[] };
 
@@ -22,82 +18,130 @@ type Props = {
   resmiTatiller: Record<string, string>;
   gunIso: (gunIndex: number) => string;
   gunNo: (gunIndex: number) => number;
+  /** Paylaşım görüntüsü çözünürlüğü (1 = ekran, 2–3 = daha keskin PNG) */
+  olcek?: number;
 };
 
-function createStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-    root: {
-      backgroundColor: colors.bg,
-      padding: 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    ust: { marginBottom: 12 },
-    magaza: { fontSize: 18, fontWeight: "800", color: colors.text },
-    aralik: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginTop: 4 },
-    hafta: { fontSize: 11, fontWeight: "700", color: colors.primary, marginTop: 2, textTransform: "uppercase" },
-    tablo: {
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      overflow: "hidden",
-      backgroundColor: colors.surface,
-    },
-    baslikSatir: {
-      flexDirection: "row",
-      backgroundColor: colors.surface2,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-      minHeight: BASLIK_YUK,
-    },
-    veriSatir: {
-      flexDirection: "row",
-      minHeight: SATIR_YUK,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border + "88",
-    },
-    isimHucre: {
-      width: ISIM_GEN,
-      paddingHorizontal: 8,
-      justifyContent: "center",
-      borderRightWidth: StyleSheet.hairlineWidth,
-      borderRightColor: colors.border,
-    },
-    isim: { fontSize: 12, fontWeight: "700", color: colors.text },
-    gunHucre: {
-      width: GUN_GEN,
-      paddingHorizontal: 4,
-      paddingVertical: 6,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRightWidth: StyleSheet.hairlineWidth,
-      borderRightColor: colors.border + "66",
-    },
-    gunBaslik: { fontSize: 12, fontWeight: "800", color: colors.text },
-    gunTarih: { fontSize: 10, fontWeight: "600", color: colors.textMuted, marginTop: 2 },
-    rtBadge: {
-      marginTop: 4,
-      paddingHorizontal: 4,
-      paddingVertical: 2,
-      borderRadius: 4,
-      backgroundColor: colors.resmiTatil + "22",
-    },
-    rtText: { fontSize: 7, fontWeight: "800", color: colors.resmiTatil, textAlign: "center" },
-    hucre: {
-      width: GUN_GEN - 8,
-      minHeight: SATIR_YUK - 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 3,
-      paddingVertical: 4,
-    },
-    hucreBaslik: { fontSize: 10, fontWeight: "800", color: colors.text, textAlign: "center" },
-    hucreAlt: { fontSize: 8, fontWeight: "600", color: colors.textMuted, textAlign: "center", marginTop: 2 },
-    footer: { marginTop: 10, fontSize: 9, color: colors.textMuted, textAlign: "right" },
-  });
+function createStyles(colors: ThemeColors, s: number) {
+  const isimGen = Math.round(128 * s);
+  const gunGen = Math.round(78 * s);
+  const satirYuk = Math.round(58 * s);
+  const baslikYuk = Math.round(68 * s);
+
+  return {
+    isimGen,
+    gunGen,
+    styles: StyleSheet.create({
+      root: {
+        backgroundColor: colors.bg,
+        padding: Math.round(16 * s),
+        borderRadius: Math.round(12 * s),
+        borderWidth: Math.max(1, Math.round(s)),
+        borderColor: colors.border,
+      },
+      ust: { marginBottom: Math.round(12 * s) },
+      magaza: { fontSize: Math.round(18 * s), fontWeight: "800", color: colors.text },
+      aralik: {
+        fontSize: Math.round(13 * s),
+        fontWeight: "600",
+        color: colors.textMuted,
+        marginTop: Math.round(4 * s),
+      },
+      hafta: {
+        fontSize: Math.round(11 * s),
+        fontWeight: "700",
+        color: colors.primary,
+        marginTop: Math.round(2 * s),
+        textTransform: "uppercase",
+      },
+      tablo: {
+        borderRadius: Math.round(10 * s),
+        borderWidth: Math.max(1, Math.round(s)),
+        borderColor: colors.border,
+        overflow: "hidden",
+        backgroundColor: colors.surface,
+      },
+      baslikSatir: {
+        flexDirection: "row",
+        backgroundColor: colors.surface2,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.border,
+        minHeight: baslikYuk,
+      },
+      veriSatir: {
+        flexDirection: "row",
+        minHeight: satirYuk,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.border + "88",
+      },
+      isimHucre: {
+        width: isimGen,
+        paddingHorizontal: Math.round(8 * s),
+        justifyContent: "center",
+        borderRightWidth: StyleSheet.hairlineWidth,
+        borderRightColor: colors.border,
+      },
+      isim: { fontSize: Math.round(12 * s), fontWeight: "700", color: colors.text },
+      gunHucre: {
+        width: gunGen,
+        paddingHorizontal: Math.round(4 * s),
+        paddingVertical: Math.round(6 * s),
+        alignItems: "center",
+        justifyContent: "center",
+        borderRightWidth: StyleSheet.hairlineWidth,
+        borderRightColor: colors.border + "66",
+      },
+      gunBaslik: { fontSize: Math.round(12 * s), fontWeight: "800", color: colors.text },
+      gunTarih: {
+        fontSize: Math.round(10 * s),
+        fontWeight: "600",
+        color: colors.textMuted,
+        marginTop: Math.round(2 * s),
+      },
+      rtBadge: {
+        marginTop: Math.round(4 * s),
+        paddingHorizontal: Math.round(4 * s),
+        paddingVertical: Math.round(2 * s),
+        borderRadius: Math.round(4 * s),
+        backgroundColor: colors.resmiTatil + "22",
+      },
+      rtText: {
+        fontSize: Math.round(7 * s),
+        fontWeight: "800",
+        color: colors.resmiTatil,
+        textAlign: "center",
+      },
+      hucre: {
+        width: gunGen - Math.round(8 * s),
+        minHeight: satirYuk - Math.round(12 * s),
+        borderRadius: Math.round(8 * s),
+        borderWidth: Math.max(1, Math.round(s)),
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: Math.round(3 * s),
+        paddingVertical: Math.round(4 * s),
+      },
+      hucreBaslik: {
+        fontSize: Math.round(10 * s),
+        fontWeight: "800",
+        color: colors.text,
+        textAlign: "center",
+      },
+      hucreAlt: {
+        fontSize: Math.round(8 * s),
+        fontWeight: "600",
+        color: colors.textMuted,
+        textAlign: "center",
+        marginTop: Math.round(2 * s),
+      },
+      footer: {
+        marginTop: Math.round(10 * s),
+        fontSize: Math.round(9 * s),
+        color: colors.textMuted,
+        textAlign: "right",
+      },
+    }),
+  };
 }
 
 /** Ekran dışında tam tablo — paylaşım görüntüsü (tüm personel, kırpılmadan) */
@@ -110,12 +154,19 @@ export function VardiyaPaylasimTablosu({
   resmiTatiller,
   gunIso,
   gunNo,
+  olcek = 1,
 }: Props) {
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const genislik = ISIM_GEN + GUN_GEN * 7;
+  const { isimGen, gunGen, styles } = useMemo(
+    () => createStyles(colors, olcek),
+    [colors, olcek],
+  );
+  const genislik = isimGen + gunGen * 7;
 
   return (
-    <View style={[styles.root, { width: genislik + 32 }]} collapsable={false}>
+    <View
+      style={[styles.root, { width: genislik + Math.round(32 * olcek) }]}
+      collapsable={false}
+    >
       <View style={styles.ust}>
         <Text style={styles.magaza}>{magazaAdi || "Vardiya"}</Text>
         <Text style={styles.aralik}>{aralik}</Text>
@@ -124,7 +175,9 @@ export function VardiyaPaylasimTablosu({
       <View style={[styles.tablo, { width: genislik }]}>
         <View style={styles.baslikSatir}>
           <View style={styles.isimHucre}>
-            <Text style={[styles.isim, { color: colors.textMuted, fontSize: 10 }]}>Personel</Text>
+            <Text style={[styles.isim, { color: colors.textMuted, fontSize: Math.round(10 * olcek) }]}>
+              Personel
+            </Text>
           </View>
           {GUN_KISA.map((g, i) => {
             const iso = gunIso(i);

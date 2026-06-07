@@ -158,11 +158,6 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
           indirmeYuzdesi={indirmeYuzdesi}
           indirmeHatasi={indirmeHatasi}
           onGuncelle={() => void guncellemeyiUygula()}
-          onSonra={
-            durum.zorunlu
-              ? undefined
-              : () => setDurum({ tur: "guncel" })
-          }
         />
       ) : null}
     </UpdateContext.Provider>

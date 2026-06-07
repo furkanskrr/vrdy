@@ -1,9 +1,9 @@
 {
   "version": "1.0.1",
   "minVersion": "1.0.0",
-  "releaseNotes": "Uygulama içi APK güncelleme: indirme çubuğu ve tek dokunuşla kurulum. Küçük güncellemeler OTA ile otomatik gelir.",
+  "releaseNotes": "Güncelleme artık zorunlu. Vardiya paylaşımı kompakt simge butonu ve daha yüksek görüntü kalitesi.",
   "androidApkUrl": "https://vrdy.vercel.app/Vardiyam.apk",
   "easArtifactUrl": "https://expo.dev/artifacts/eas/pc1i7AinfiH4YM9UsALeqh.apk",
   "webUrl": "https://vrdy.vercel.app",
-  "zorunlu": false
+  "zorunlu": true
 }

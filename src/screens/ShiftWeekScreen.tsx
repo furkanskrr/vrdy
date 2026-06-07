@@ -30,7 +30,7 @@ import { useSchedule, type ManualOverrides, type OverrideKey } from "../context/
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
 import { VardiyaPaylasimTablosu } from "../components/VardiyaPaylasimTablosu";
-import { vardiyaTablosuPaylas } from "../lib/vardiyaPaylas";
+import { vardiyaPaylasimOlcegi, vardiyaTablosuPaylas } from "../lib/vardiyaPaylas";
 
 const HAFTA_OFFSET_MIN = -52;
 const HAFTA_OFFSET_MAX = 52;
@@ -177,21 +177,6 @@ function createShiftWeekStyles(colors: ThemeColors) {
     },
     kaydetBtnDisabled: { opacity: 0.75 },
     kaydetText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-    paylasBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      borderRadius: 12,
-      backgroundColor: colors.surface2,
-      borderWidth: 1,
-      borderColor: colors.border,
-      marginTop: 8,
-      alignSelf: "flex-start",
-    },
-    paylasBtnPressed: { opacity: 0.88 },
-    paylasBtnText: { fontSize: 13, fontWeight: "700", color: colors.primary },
     schemaCard: {
       backgroundColor: colors.surface,
       borderRadius: 14,
@@ -705,24 +690,24 @@ export function ShiftWeekScreen() {
                   color={haftaOffset >= HAFTA_OFFSET_MAX ? colors.textMuted : colors.text}
                 />
               </Pressable>
+              <Pressable
+                onPress={() => void paylas()}
+                disabled={paylasiliyor || bekleyenVar}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={({ pressed }) => [
+                  styles.haftaOk,
+                  (paylasiliyor || bekleyenVar) && styles.haftaOkDisabled,
+                  pressed && !paylasiliyor && !bekleyenVar && styles.haftaOkPressed,
+                ]}
+                accessibilityLabel="Vardiyayı paylaş"
+              >
+                {paylasiliyor ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="share-outline" size={20} color={colors.primary} />
+                )}
+              </Pressable>
             </View>
-            <Pressable
-              onPress={() => void paylas()}
-              disabled={paylasiliyor || bekleyenVar}
-              style={({ pressed }) => [
-                styles.paylasBtn,
-                (paylasiliyor || bekleyenVar) && { opacity: 0.5 },
-                pressed && !paylasiliyor && !bekleyenVar && styles.paylasBtnPressed,
-              ]}
-              accessibilityLabel="Vardiyayı görüntü olarak paylaş"
-            >
-              {paylasiliyor ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Ionicons name="share-outline" size={18} color={colors.primary} />
-              )}
-              <Text style={styles.paylasBtnText}>Paylaş</Text>
-            </Pressable>
           </View>
           {bekleyenVar ? (
             <View style={styles.kaydetRow}>
@@ -867,6 +852,7 @@ export function ShiftWeekScreen() {
             resmiTatiller={resmiTatiller}
             gunIso={(i) => haftaGunISO(pzt, i)}
             gunNo={(i) => haftaGunAyGunu(pzt, i)}
+            olcek={vardiyaPaylasimOlcegi()}
           />
         </View>
       </View>

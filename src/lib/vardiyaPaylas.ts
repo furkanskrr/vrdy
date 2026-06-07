@@ -1,6 +1,11 @@
-import { Alert, Platform } from "react-native";
+import { Alert, PixelRatio, Platform } from "react-native";
 import type { RefObject } from "react";
 import type { View } from "react-native";
+
+/** Paylaşım PNG çözünürlüğü — düşük cihazlarda en az 2x */
+export function vardiyaPaylasimOlcegi(): number {
+  return Math.min(3, Math.max(2, Math.round(PixelRatio.get())));
+}
 
 export async function vardiyaTablosuPaylas(captureView: RefObject<View | null>): Promise<void> {
   if (!captureView.current) {
@@ -13,6 +18,7 @@ export async function vardiyaTablosuPaylas(captureView: RefObject<View | null>):
       format: "png",
       quality: 1,
       result: "tmpfile",
+      ...(Platform.OS === "ios" ? { useRenderInContext: true } : {}),
     });
 
     if (Platform.OS === "web") {

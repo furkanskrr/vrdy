@@ -20,7 +20,6 @@ type Props = {
   indirmeYuzdesi?: number;
   indirmeHatasi?: string | null;
   onGuncelle: () => void;
-  onSonra?: () => void;
 };
 
 function createStyles(colors: ThemeColors) {
@@ -94,8 +93,6 @@ function createStyles(colors: ThemeColors) {
       marginBottom: 10,
     },
     birincilText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-    ikincil: { alignItems: "center", paddingVertical: 10 },
-    ikincilText: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
     progressWrap: { marginBottom: 16 },
     progressTrack: {
       height: 8,
@@ -144,7 +141,6 @@ export function UpdateScreen({
   indirmeYuzdesi = 0,
   indirmeHatasi = null,
   onGuncelle,
-  onSonra,
 }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -160,9 +156,7 @@ export function UpdateScreen({
         <View style={styles.ikonWrap}>
           <Ionicons name="cloud-download-outline" size={32} color={colors.primary} />
         </View>
-        <Text style={styles.baslik}>
-          {durum.zorunlu ? "Güncelleme gerekli" : "Yeni sürüm var"}
-        </Text>
+        <Text style={styles.baslik}>Güncelleme gerekli</Text>
         <Text style={styles.surum}>
           {durum.mevcutSurum} → {durum.hedefSurum}
         </Text>
@@ -199,11 +193,6 @@ export function UpdateScreen({
             </>
           )}
         </Pressable>
-        {onSonra ? (
-          <Pressable style={styles.ikincil} onPress={onSonra}>
-            <Text style={styles.ikincilText}>Daha sonra</Text>
-          </Pressable>
-        ) : null}
       </View>
     </View>
   );

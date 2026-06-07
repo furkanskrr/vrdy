@@ -444,12 +444,13 @@ export function ShiftWeekScreen() {
     overrides,
     setOverride,
     clearOverride,
+    planYenile,
     resmiTatiller,
     resmiTatilTarihleri,
     resmiTatilEkle,
     resmiTatilSil,
   } = useSchedule();
-  const { user, vardiyaDuzenleyebilir } = useAuth();
+  const { user, session, vardiyaDuzenleyebilir } = useAuth();
   const { bildirimGonder } = useNotification();
   const isFocused = useIsFocused();
 
@@ -472,6 +473,7 @@ export function ShiftWeekScreen() {
   const [rtAciklama, setRtAciklama] = useState("");
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [paylasiliyor, setPaylasiliyor] = useState(false);
+  const [paylasimHazir, setPaylasimHazir] = useState(false);
   const paylasimRef = useRef<View>(null);
 
   useEffect(() => {
@@ -548,9 +550,17 @@ export function ShiftWeekScreen() {
 
   async function kaydet() {
     if (kaydediliyor) return;
+    if (!session?.user?.id) {
+      Alert.alert(
+        "Oturum süresi doldu",
+        "Kayıt için tekrar giriş yapın. iPhone’da Ana Ekrana ekli kısayolu kapatıp yeniden açmayı deneyin."
+      );
+      return;
+    }
     setKaydediliyor(true);
     const degisimler: string[] = [];
     let hata = false;
+    const topluSecenek = { bildirim: false, planYenile: false } as const;
     try {
       for (const [k, v] of Object.entries(bekleyen)) {
         const parca = overrideAnahtarParcala(k);
@@ -558,7 +568,7 @@ export function ShiftWeekScreen() {
         const { tarih, uyeId } = parca;
         const uye = ekip.find((u) => u.id === uyeId);
         if (v === BEKLEYEN_SIL) {
-          const sonuc = await clearOverride(tarih, uyeId);
+          const sonuc = await clearOverride(tarih, uyeId, topluSecenek);
           if (!sonuc.ok) hata = true;
           else if (!sonuc.silindi) {
             Alert.alert(
@@ -569,15 +579,19 @@ export function ShiftWeekScreen() {
             degisimler.push(`${uye.ad}: atama kaldırıldı (${tarih})`);
           }
         } else if (v) {
-          const ok = await setOverride(tarih, uyeId, v);
+          const ok = await setOverride(tarih, uyeId, v, topluSecenek);
           if (!ok) hata = true;
           else if (uye) degisimler.push(`${uye.ad}: ${vardiyaEtiket(v)} (${tarih})`);
         }
       }
       if (hata) {
-        Alert.alert("Kayıt tamamlanamadı", SUPABASE_SEME_UYARISI);
+        Alert.alert(
+          "Kayıt tamamlanamadı",
+          `${SUPABASE_SEME_UYARISI}\n\nMüdür yardımcısı iseniz Supabase’te fix_shift_overrides_mudur_yardimci.sql dosyasını da çalıştırın.`
+        );
         return;
       }
+      await planYenile();
       setBekleyen({});
       if (degisimler.length > 0) {
         bildirimGonder(
@@ -607,12 +621,14 @@ export function ShiftWeekScreen() {
       }
       return;
     }
+    setPaylasimHazir(true);
     setPaylasiliyor(true);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       await vardiyaTablosuPaylas(paylasimRef);
     } finally {
       setPaylasiliyor(false);
+      setPaylasimHazir(false);
     }
   }
 
@@ -842,18 +858,20 @@ export function ShiftWeekScreen() {
         collapsable={false}
       >
         <View ref={paylasimRef} collapsable={false}>
-          <VardiyaPaylasimTablosu
-            colors={colors}
-            magazaAdi={user?.magazaAdi ?? ""}
-            aralik={aralik}
-            haftaEtiket={haftaEtiket}
-            pzt={pzt}
-            satirlar={satirlar}
-            resmiTatiller={resmiTatiller}
-            gunIso={(i) => haftaGunISO(pzt, i)}
-            gunNo={(i) => haftaGunAyGunu(pzt, i)}
-            olcek={vardiyaPaylasimOlcegi()}
-          />
+          {paylasimHazir ? (
+            <VardiyaPaylasimTablosu
+              colors={colors}
+              magazaAdi={user?.magazaAdi ?? ""}
+              aralik={aralik}
+              haftaEtiket={haftaEtiket}
+              pzt={pzt}
+              satirlar={satirlar}
+              resmiTatiller={resmiTatiller}
+              gunIso={(i) => haftaGunISO(pzt, i)}
+              gunNo={(i) => haftaGunAyGunu(pzt, i)}
+              olcek={vardiyaPaylasimOlcegi()}
+            />
+          ) : null}
         </View>
       </View>
 

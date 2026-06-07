@@ -116,10 +116,19 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void yenidenKontrol();
+    let guncellemeZamanlayici: ReturnType<typeof setTimeout> | null = null;
     const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") void yenidenKontrol();
+      if (s !== "active") return;
+      if (guncellemeZamanlayici) clearTimeout(guncellemeZamanlayici);
+      guncellemeZamanlayici = setTimeout(() => {
+        guncellemeZamanlayici = null;
+        void yenidenKontrol();
+      }, 1500);
     });
-    return () => sub.remove();
+    return () => {
+      if (guncellemeZamanlayici) clearTimeout(guncellemeZamanlayici);
+      sub.remove();
+    };
   }, [yenidenKontrol]);
 
   const value = useMemo(

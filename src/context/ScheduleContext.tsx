@@ -39,8 +39,10 @@ type ScheduleContextValue = {
   clearIzinGunu: (memberId: string) => Promise<boolean>;
 
   overrides: ManualOverrides;
-  setOverride: (tarih: string, memberId: string, shift: ShiftKind, opts?: { bildirim?: boolean }) => Promise<boolean>;
-  clearOverride: (tarih: string, memberId: string) => Promise<ClearOverrideSonuc>;
+  setOverride: (tarih: string, memberId: string, shift: ShiftKind, opts?: PlanIslemSecenek) => Promise<boolean>;
+  clearOverride: (tarih: string, memberId: string, opts?: PlanIslemSecenek) => Promise<ClearOverrideSonuc>;
+  /** Vardiya verisini sunucudan yeniden çeker (toplu kayıt sonrası tek sefer) */
+  planYenile: () => Promise<void>;
 
   takaslar: TakasKaydi[];
   /** Aynı takvim günü; partnerler o günkü farklı vardiyalarını takas eder */
@@ -58,13 +60,19 @@ type ScheduleContextValue = {
 
 const ScheduleContext = createContext<ScheduleContextValue | null>(null);
 
-/** Context’teki session bazen gecikmeli null kalır; yazma öncesi storage’daki oturumu oku */
+/** Context’teki session bazen gecikmeli null kalır (özellikle iOS PWA); yazma öncesi taze oturum */
 async function authKullaniciIdAl(stateSession: Session | null): Promise<string | null> {
   const id = stateSession?.user?.id;
   if (id) return id;
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user?.id ?? null;
+  const { data: sess } = await supabase.auth.getSession();
+  if (sess.session?.user?.id) return sess.session.user.id;
+  const { data: userData, error } = await supabase.auth.getUser();
+  if (!error && userData.user?.id) return userData.user.id;
+  const { data: refreshed } = await supabase.auth.refreshSession();
+  return refreshed.session?.user?.id ?? null;
 }
+
+type PlanIslemSecenek = { bildirim?: boolean; planYenile?: boolean };
 
 function memberToTeam(row: any): TeamMember {
   return {
@@ -203,7 +211,17 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     fetchAll();
   }, [fetchAll]);
 
-  // Realtime subscriptions
+  const planYenileZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const planYenileGecikmeli = useCallback(() => {
+    if (planYenileZamanlayici.current) clearTimeout(planYenileZamanlayici.current);
+    planYenileZamanlayici.current = setTimeout(() => {
+      planYenileZamanlayici.current = null;
+      void fetchAll();
+    }, 450);
+  }, [fetchAll]);
+
+  // Realtime subscriptions (debounce — Android’de art arda tam yenileme yavaşlatıyordu)
   useEffect(() => {
     if (!groupId) return;
 
@@ -212,34 +230,35 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "group_members", filter: `group_id=eq.${groupId}` },
-        () => { fetchAll(); }
+        () => { planYenileGecikmeli(); }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "day_offs", filter: `group_id=eq.${groupId}` },
-        () => { fetchAll(); }
+        () => { planYenileGecikmeli(); }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "shift_overrides", filter: `group_id=eq.${groupId}` },
-        () => { fetchAll(); }
+        () => { planYenileGecikmeli(); }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "group_holidays", filter: `group_id=eq.${groupId}` },
-        () => { fetchAll(); }
+        () => { planYenileGecikmeli(); }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "shift_swap_requests", filter: `group_id=eq.${groupId}` },
-        () => { fetchAll(); }
+        () => { planYenileGecikmeli(); }
       )
       .subscribe();
 
     return () => {
+      if (planYenileZamanlayici.current) clearTimeout(planYenileZamanlayici.current);
       supabase.removeChannel(channel);
     };
-  }, [groupId, fetchAll]);
+  }, [groupId, planYenileGecikmeli]);
 
   const uyeEkle = useCallback(async (ad: string, rol: string, partnerId?: string) => {
     if (!groupId || !session?.user) return;
@@ -454,13 +473,14 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     [groupId, ekip, izinGunu, fetchAll]
   );
 
-  const setOverride = useCallback(async (tarih: string, memberId: string, shift: ShiftKind, opts?: { bildirim?: boolean }) => {
+  const setOverride = useCallback(async (tarih: string, memberId: string, shift: ShiftKind, opts?: PlanIslemSecenek) => {
     if (!groupId) return false;
     const uid = await authKullaniciIdAl(session);
     if (!uid) return false;
 
     const gun = isoTarihGunluk(tarih);
     const bildirim = opts?.bildirim !== false;
+    const planYenile = opts?.planYenile !== false;
 
     const { bas: haftaPzt, bit: haftaPaz } = haftaAraligiISO(gun);
     const buHaftaPzt = simdikiHaftaPazartesiStr();
@@ -498,6 +518,10 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
 
+    const canonKey: OverrideKey = `${gun}__${memberId}`;
+    setOverridesState((prev) => ({ ...prev, [canonKey]: shift }));
+    if (planYenile) await fetchAll();
+
     const member = ekip.find((u) => u.id === memberId);
     if (!groupId || !member || !bildirim) return true;
 
@@ -514,13 +538,14 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       ).catch(() => {});
     }
     return true;
-  }, [groupId, session, ekip, user?.rol]);
+  }, [groupId, session, ekip, user?.rol, fetchAll]);
 
   const clearOverride = useCallback(
-    async (tarih: string, memberId: string): Promise<ClearOverrideSonuc> => {
+    async (tarih: string, memberId: string, opts?: PlanIslemSecenek): Promise<ClearOverrideSonuc> => {
       if (!groupId) return { ok: false };
       const uid = await authKullaniciIdAl(session);
       if (!uid) return { ok: false };
+      const planYenile = opts?.planYenile !== false;
       const gun = isoTarihGunluk(tarih);
       const member = ekip.find((u) => u.id === memberId);
       const { bas: haftaPzt } = haftaAraligiISO(gun);
@@ -561,7 +586,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
 
-      await fetchAll();
+      if (planYenile) await fetchAll();
 
       if (member && !gelecekHaftaMi && silinecekIdler.length > 0) {
         sendPushToGroup(
@@ -774,6 +799,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     overrides,
     setOverride,
     clearOverride,
+    planYenile: fetchAll,
     takaslar,
     takasTalepGonder,
     takasPartnerYanit,
@@ -795,6 +821,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     overrides,
     setOverride,
     clearOverride,
+    fetchAll,
     takaslar,
     takasTalepGonder,
     takasPartnerYanit,

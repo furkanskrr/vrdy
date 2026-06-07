@@ -32,16 +32,31 @@ export const supabase = createClient(
   }
 );
 
-// Arka plandan dönünce oturumu taze tut (RN'de kalıcı giriş için önerilir)
-if (isSupabaseConfigured && Platform.OS !== "web") {
-  if (AppState.currentState === "active") {
-    supabase.auth.startAutoRefresh();
+function oturumYenilemeyiBaslat() {
+  supabase.auth.startAutoRefresh();
+}
+
+function oturumYenilemeyiDurdur() {
+  supabase.auth.stopAutoRefresh();
+}
+
+// Arka plandan dönünce oturumu taze tut
+if (isSupabaseConfigured) {
+  if (Platform.OS !== "web") {
+    if (AppState.currentState === "active") oturumYenilemeyiBaslat();
+    AppState.addEventListener("change", (state) => {
+      if (state === "active") oturumYenilemeyiBaslat();
+      else oturumYenilemeyiDurdur();
+    });
+  } else if (typeof document !== "undefined") {
+    oturumYenilemeyiBaslat();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        oturumYenilemeyiBaslat();
+        void supabase.auth.getSession();
+      } else {
+        oturumYenilemeyiDurdur();
+      }
+    });
   }
-  AppState.addEventListener("change", (state) => {
-    if (state === "active") {
-      supabase.auth.startAutoRefresh();
-    } else {
-      supabase.auth.stopAutoRefresh();
-    }
-  });
 }

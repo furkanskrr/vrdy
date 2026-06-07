@@ -247,7 +247,8 @@ export function KullanimRehberiScreen({}: Props) {
 
       <View style={st.ayirici} />
       <Text style={[st.paragraf, { textAlign: "center", marginTop: 4 }]}>
-        Sorularınız için müdürünüze veya uygulama yöneticinize başvurun.
+        Sorularınız için müdürünüze veya uygulama yöneticinize başvurun. 
+        Uygulama Yöneticisi: Furkan Enes Şeker - 8666 SÜTÇÜ İMAM MAĞAZASI
       </Text>
     </ScrollView>
   );

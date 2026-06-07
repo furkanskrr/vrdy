@@ -1,8 +1,6 @@
 import { Alert, Platform } from "react-native";
 import type { RefObject } from "react";
 import type { View } from "react-native";
-import { captureRef } from "react-native-view-shot";
-import * as Sharing from "expo-sharing";
 
 export async function vardiyaTablosuPaylas(captureView: RefObject<View | null>): Promise<void> {
   if (!captureView.current) {
@@ -10,6 +8,7 @@ export async function vardiyaTablosuPaylas(captureView: RefObject<View | null>):
     return;
   }
   try {
+    const { captureRef } = await import("react-native-view-shot");
     const uri = await captureRef(captureView, {
       format: "png",
       quality: 1,
@@ -27,6 +26,7 @@ export async function vardiyaTablosuPaylas(captureView: RefObject<View | null>):
       return;
     }
 
+    const Sharing = await import("expo-sharing");
     if (!(await Sharing.isAvailableAsync())) {
       Alert.alert("Paylaş", "Bu cihazda paylaşım menüsü kullanılamıyor.");
       return;
@@ -38,6 +38,14 @@ export async function vardiyaTablosuPaylas(captureView: RefObject<View | null>):
       UTI: "public.png",
     });
   } catch (e) {
-    Alert.alert("Paylaş", e instanceof Error ? e.message : "Görüntü oluşturulamadı.");
+    const msg = e instanceof Error ? e.message : "Görüntü oluşturulamadı.";
+    if (Platform.OS !== "web" && /native module|TurboModule|view-shot/i.test(msg)) {
+      Alert.alert(
+        "Uygulama güncellemesi gerekli",
+        "Vardiya paylaşımı için yeni APK kurulumu gerekiyor. Diğer özellikler OTA ile güncellenir."
+      );
+      return;
+    }
+    Alert.alert("Paylaş", msg);
   }
 }

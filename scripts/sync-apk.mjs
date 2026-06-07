@@ -34,8 +34,14 @@ async function main() {
 
   const res = await fetch(url);
   if (!res.ok) {
-    console.error(`İndirme başarısız: HTTP ${res.status}`);
-    process.exit(1);
+    const uyari =
+      `İndirme başarısız: HTTP ${res.status} (EAS artifact süresi dolmuş olabilir).`;
+    if (fs.existsSync(hedef)) {
+      console.warn(`${uyari} Mevcut public/Vardiyam.apk korunuyor.`);
+    } else {
+      console.warn(`${uyari} Web build devam eder; yeni APK: npm run eas:android-apk`);
+    }
+    process.exit(0);
   }
 
   const buf = Buffer.from(await res.arrayBuffer());

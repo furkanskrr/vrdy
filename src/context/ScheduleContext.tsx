@@ -467,7 +467,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     const gelecekHaftaMi = haftaPzt > buHaftaPzt;
 
     let yeniHaftaIlkKayit = false;
-    const vardiyaYoneticisi = user?.rol === "mudur";
+    const vardiyaYoneticisi = user?.rol === "mudur" || user?.rol === "yardimci";
     if (bildirim && vardiyaYoneticisi && gelecekHaftaMi) {
       const { count, error: cntErr } = await supabase
         .from("shift_overrides")
@@ -676,8 +676,8 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   }, [groupId, ekip, session?.user?.id, fetchAll]);
 
   const takasMudurYanit = useCallback(async (takasId: string, onay: boolean): Promise<TakasIslemSonuc> => {
-    if (!groupId || !session?.user || user?.rol !== "mudur") {
-      return { ok: false, mesaj: "Bu işlem için müdür yetkisi gerekir." };
+    if (!groupId || !session?.user || (user?.rol !== "mudur" && user?.rol !== "yardimci")) {
+      return { ok: false, mesaj: "Bu işlem için müdür veya müdür yardımcısı yetkisi gerekir." };
     }
 
     const { data: row, error: selErr } = await supabase

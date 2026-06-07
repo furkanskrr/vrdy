@@ -211,7 +211,7 @@ export function TemizlikTakvimiScreen({}: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => createTemizlikStyles(colors), [colors]);
-  const { user, session, isMudur } = useAuth();
+  const { user, session, vardiyaDuzenleyebilir } = useAuth();
   const { ekip, izinGunu, overrides, resmiTatilTarihleri } = useSchedule();
   const { bildirimGonder } = useNotification();
 
@@ -542,7 +542,7 @@ export function TemizlikTakvimiScreen({}: Props) {
                     <Text style={styles.kartGun}>{satir.etiket}</Text>
                     <Text style={styles.kartSlot}>Görev sırası · {satir.slot} / 30</Text>
                   </View>
-                  {tamam && isMudur ? (
+                  {tamam && vardiyaDuzenleyebilir ? (
                     <TouchableOpacity
                       style={styles.silBtn}
                       onPress={() => void sil(tamam)}

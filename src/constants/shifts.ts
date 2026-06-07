@@ -11,7 +11,7 @@ export const VARDIYA_DETAY: Record<Exclude<ShiftKind, "izin" | "envanter_izni" |
   antre: { baslangic: "08:45", bitis: "21:15", molaDk: 0, hesapSaat: 7.5 },
   aksam: { baslangic: "12:15", bitis: "21:15", molaDk: 90, hesapSaat: 7.5 },
   envanter: { baslangic: "08:45", bitis: "21:15", molaDk: 0, hesapSaat: 7.5 },
-  envanter_full: { baslangic: "08:45", bitis: "21:15", molaDk: 90, hesapSaat: 7.5 },
+  envanter_full: { baslangic: "08:45", bitis: "21:15", molaDk: 90, hesapSaat: 11 },
 };
 
 export function shiftKindSaat(v: ShiftKind | undefined | null): number {

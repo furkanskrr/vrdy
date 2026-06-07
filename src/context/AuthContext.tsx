@@ -26,7 +26,7 @@ type AuthContextValue = {
   session: Session | null;
   loading: boolean;
   isMudur: boolean;
-  /** Haftalık vardiya ve resmi tatil düzenleme (yalnızca müdür; müdür yrd. ve personel salt okunur) */
+  /** Haftalık vardiya, resmi tatil, ekip/izin yönetimi (müdür ve müdür yardımcısı) */
   vardiyaDuzenleyebilir: boolean;
   girisYap: (email: string, sifre: string) => Promise<string | null>;
   kayitOl: (
@@ -886,7 +886,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isMudur = user?.rol === "mudur";
-  const vardiyaDuzenleyebilir = user?.rol === "mudur";
+  const vardiyaDuzenleyebilir = user?.rol === "mudur" || user?.rol === "yardimci";
 
   const value = useMemo<AuthContextValue>(
     () => ({

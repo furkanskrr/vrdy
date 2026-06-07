@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,8 @@ import type { ShiftKind } from "../types";
 import { useSchedule, type ManualOverrides, type OverrideKey } from "../context/ScheduleContext";
 import { useAuth } from "../context/AuthContext";
 import { useNotification } from "../context/NotificationContext";
+import { VardiyaPaylasimTablosu } from "../components/VardiyaPaylasimTablosu";
+import { vardiyaTablosuPaylas } from "../lib/vardiyaPaylas";
 
 const HAFTA_OFFSET_MIN = -52;
 const HAFTA_OFFSET_MAX = 52;
@@ -64,7 +66,7 @@ const SECIM_VARDIYALAR: SecimItem[] = [
 const SECIM_ENVANTER: SecimItem[] = [
   { kind: "envanter", baslik: "Envanter", aciklama: "Sayım günü" },
   { kind: "envanter_izni", baslik: "Envanter İzni", aciklama: "Sayım sonrası izin" },
-  { kind: "envanter_full", baslik: "Envanter Fullü", aciklama: "Sayım tam gün" },
+  { kind: "envanter_full", baslik: "Envanter Fullü", aciklama: "Tam gün · 11 saat" },
 ];
 
 type Picker = { tarih: string; uyeId: string; uyeAd: string };
@@ -175,6 +177,21 @@ function createShiftWeekStyles(colors: ThemeColors) {
     },
     kaydetBtnDisabled: { opacity: 0.75 },
     kaydetText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+    paylasBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 12,
+      backgroundColor: colors.surface2,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 8,
+      alignSelf: "flex-start",
+    },
+    paylasBtnPressed: { opacity: 0.88 },
+    paylasBtnText: { fontSize: 13, fontWeight: "700", color: colors.primary },
     schemaCard: {
       backgroundColor: colors.surface,
       borderRadius: 14,
@@ -447,7 +464,7 @@ export function ShiftWeekScreen() {
     resmiTatilEkle,
     resmiTatilSil,
   } = useSchedule();
-  const { vardiyaDuzenleyebilir } = useAuth();
+  const { user, vardiyaDuzenleyebilir } = useAuth();
   const { bildirimGonder } = useNotification();
   const isFocused = useIsFocused();
 
@@ -469,6 +486,8 @@ export function ShiftWeekScreen() {
   const [rtModalGun, setRtModalGun] = useState<string | null>(null);
   const [rtAciklama, setRtAciklama] = useState("");
   const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [paylasiliyor, setPaylasiliyor] = useState(false);
+  const paylasimRef = useRef<View>(null);
 
   useEffect(() => {
     if (!isFocused) {
@@ -596,6 +615,22 @@ export function ShiftWeekScreen() {
     setBekleyen({});
   }
 
+  async function paylas() {
+    if (paylasiliyor || bekleyenVar) {
+      if (bekleyenVar) {
+        Alert.alert("Kayıt bekliyor", "Paylaşmadan önce değişiklikleri kaydedin veya vazgeçin.");
+      }
+      return;
+    }
+    setPaylasiliyor(true);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    try {
+      await vardiyaTablosuPaylas(paylasimRef);
+    } finally {
+      setPaylasiliyor(false);
+    }
+  }
+
   if (ekip.length === 0) {
     return (
       <View style={[styles.screen, { paddingTop: ustEkranBoslugu(insets.top, 24), alignItems: "center", justifyContent: "center" }]}>
@@ -671,6 +706,23 @@ export function ShiftWeekScreen() {
                 />
               </Pressable>
             </View>
+            <Pressable
+              onPress={() => void paylas()}
+              disabled={paylasiliyor || bekleyenVar}
+              style={({ pressed }) => [
+                styles.paylasBtn,
+                (paylasiliyor || bekleyenVar) && { opacity: 0.5 },
+                pressed && !paylasiliyor && !bekleyenVar && styles.paylasBtnPressed,
+              ]}
+              accessibilityLabel="Vardiyayı görüntü olarak paylaş"
+            >
+              {paylasiliyor ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="share-outline" size={18} color={colors.primary} />
+              )}
+              <Text style={styles.paylasBtnText}>Paylaş</Text>
+            </Pressable>
           </View>
           {bekleyenVar ? (
             <View style={styles.kaydetRow}>
@@ -696,7 +748,7 @@ export function ShiftWeekScreen() {
           <View style={styles.readonlyBanner}>
             <Ionicons name="eye-outline" size={18} color={colors.textMuted} />
             <Text style={styles.readonlyText}>
-              Düzenleme yetkisi yok. Vardiya değişiklikleri yönetici tarafından yapılır.
+              Düzenleme yetkisi yok. Vardiya değişiklikleri müdür veya müdür yardımcısı tarafından yapılır.
             </Text>
           </View>
         )}
@@ -798,6 +850,26 @@ export function ShiftWeekScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <View
+        style={{ position: "absolute", left: -12000, top: 0, opacity: 0 }}
+        pointerEvents="none"
+        collapsable={false}
+      >
+        <View ref={paylasimRef} collapsable={false}>
+          <VardiyaPaylasimTablosu
+            colors={colors}
+            magazaAdi={user?.magazaAdi ?? ""}
+            aralik={aralik}
+            haftaEtiket={haftaEtiket}
+            pzt={pzt}
+            satirlar={satirlar}
+            resmiTatiller={resmiTatiller}
+            gunIso={(i) => haftaGunISO(pzt, i)}
+            gunNo={(i) => haftaGunAyGunu(pzt, i)}
+          />
+        </View>
+      </View>
 
       {picker && (
         <Pressable style={styles.overlay} onPress={() => setPicker(null)}>

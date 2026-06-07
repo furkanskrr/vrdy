@@ -334,7 +334,7 @@ export function ShiftSwapScreen() {
     const benimId = benim?.id;
     const partnerMi = benimId === t.toMemberId;
     const talepEdenMi = benimId === t.fromMemberId;
-    const mudurMu = user?.rol === "mudur";
+    const mudurMu = user?.rol === "mudur" || user?.rol === "yardimci";
     const yanitSuresi = talepYanitSuresiMetni(t.createdAt, t.status);
     const sureDustu =
       yanitSuresi?.includes("doldu") &&

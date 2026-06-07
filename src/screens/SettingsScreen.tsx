@@ -83,7 +83,7 @@ export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { height: ekranYuksekligi } = useWindowDimensions();
   const nav = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { user, session, isMudur, vardiyaDuzenleyebilir, cikisYap, kurulumaSifirla } = useAuth();
+  const { user, session, vardiyaDuzenleyebilir, cikisYap, kurulumaSifirla } = useAuth();
   const { ekip, izinGunu, setIzinGunu, clearIzinGunu, uyeSil, uyeGuncelle } = useSchedule();
   const { bildirimGonder, icBildirimKutusu, setIcBildirimKutusu } = useNotification();
   const { yenidenKontrol, kontrolEdiliyor } = useUpdate();
@@ -151,7 +151,7 @@ export function SettingsScreen() {
   }
 
   function izinGunuKaldirOnay(uye: TeamMember, gunAdi: string) {
-    if (!isMudur || izinGunu[uye.id] === undefined) return;
+    if (!vardiyaDuzenleyebilir || izinGunu[uye.id] === undefined) return;
     Alert.alert(
       "İzin gününü kaldır",
       `${uye.ad} için haftalık izin şablonu (${gunAdi}) kaldırılsın mı? Vardiya tablosunda bu günler boş kalır; gerektiğinde hücreden manuel atama yapabilirsiniz.`,
@@ -174,7 +174,7 @@ export function SettingsScreen() {
   }
 
   async function partnerKaydet() {
-    if (!partnerModalUye || !isMudur) return;
+    if (!partnerModalUye || !vardiyaDuzenleyebilir) return;
     const a = partnerModalUye;
     const yeni = partnerModalSecim;
     const eskiA = a.partnerId;
@@ -302,9 +302,21 @@ export function SettingsScreen() {
           onPress={() => nav.navigate("HesapBilgileri")}
           activeOpacity={0.75}
         >
-          <View style={[styles.avatar, isMudur && { backgroundColor: colors.morning }]}>
+          <View
+            style={[
+              styles.avatar,
+              user?.rol === "mudur" && { backgroundColor: colors.morning },
+              user?.rol === "yardimci" && { backgroundColor: colors.fullday },
+            ]}
+          >
             <Ionicons
-              name={isMudur ? "shield-checkmark" : "person"}
+              name={
+                user?.rol === "mudur"
+                  ? "shield-checkmark"
+                  : user?.rol === "yardimci"
+                    ? "people"
+                    : "person"
+              }
               size={22}
               color="#fff"
             />
@@ -670,7 +682,7 @@ export function SettingsScreen() {
             </View>
           </View>
 
-          {!isMudur && (
+          {!vardiyaDuzenleyebilir && (
             <View style={styles.kilit}>
               <Ionicons name="lock-closed" size={18} color={colors.afternoon} />
               <Text style={styles.kilitText}>
@@ -788,7 +800,7 @@ export function SettingsScreen() {
                           ? `Haftalık izin: ${IZIN_GUNLERI[seciliIdx]}`
                           : "Henüz izin günü seçilmedi"}
                       </Text>
-                      {isMudur && seciliIdx !== undefined ? (
+                      {vardiyaDuzenleyebilir && seciliIdx !== undefined ? (
                         <Pressable
                           style={({ pressed }) => [styles.izinKaldirBtn, pressed && styles.izinKaldirBtnPressed]}
                           onPress={() => izinGunuKaldirOnay(u, IZIN_GUNLERI[seciliIdx])}
@@ -814,7 +826,7 @@ export function SettingsScreen() {
                   {IZIN_GUNLERI.map((gun, idx) => {
                     const sec = izinGunu[u.id] === idx;
                     const engelli = partnerIzin === idx;
-                    const hucreKapali = !isMudur || engelli;
+                    const hucreKapali = !vardiyaDuzenleyebilir || engelli;
                     return (
                       <Pressable
                         key={gun}
@@ -823,18 +835,18 @@ export function SettingsScreen() {
                           styles.izinGunHucre,
                           sec && styles.izinGunHucreSecili,
                           engelli && styles.izinGunHucreKilit,
-                          !isMudur && styles.izinGunHucreSalt,
-                          !isMudur && sec && styles.izinGunHucreSaltSecili,
-                          isMudur && !engelli && pressed && !sec && styles.izinGunHucrePressed,
+                          !vardiyaDuzenleyebilir && styles.izinGunHucreSalt,
+                          !vardiyaDuzenleyebilir && sec && styles.izinGunHucreSaltSecili,
+                          vardiyaDuzenleyebilir && !engelli && pressed && !sec && styles.izinGunHucrePressed,
                         ]}
                         onPress={async () => {
-                          if (isMudur && !sec && !engelli) {
+                          if (vardiyaDuzenleyebilir && !sec && !engelli) {
                             await setIzinGunu(u.id, idx as HaftaGunuIndex);
                             bildirimGonder("izin", "İzin günü değişti", `${u.ad} izin günü: ${gun}`);
                           }
                         }}
                         onLongPress={() => {
-                          if (isMudur && sec) izinGunuKaldirOnay(u, gun);
+                          if (vardiyaDuzenleyebilir && sec) izinGunuKaldirOnay(u, gun);
                         }}
                         delayLongPress={450}
                       >
@@ -891,7 +903,7 @@ export function SettingsScreen() {
 
           <Text style={styles.bolumBaslik}>Kadro</Text>
 
-          {isMudur && ekip.length > 0 && (
+          {vardiyaDuzenleyebilir && ekip.length > 0 && (
             <View style={styles.ekipIpucu}>
               <Ionicons name="hand-left-outline" size={16} color={colors.primary} />
               <Text style={styles.ekipIpucuText}>
@@ -901,7 +913,7 @@ export function SettingsScreen() {
             </View>
           )}
 
-          {!isMudur && ekip.length > 0 ? (
+          {!vardiyaDuzenleyebilir && ekip.length > 0 ? (
             <View style={styles.ekipSaltOkunurNot}>
               <Ionicons name="eye-outline" size={16} color={colors.textMuted} />
               <Text style={styles.ekipSaltOkunurNotText}>
@@ -915,7 +927,7 @@ export function SettingsScreen() {
               <Ionicons name="people-outline" size={40} color={colors.textMuted} />
               <Text style={styles.ekipBosText}>Ekipte henüz başka üye yok</Text>
               <Text style={styles.ekipBosAlt}>
-                {isMudur
+                {vardiyaDuzenleyebilir
                   ? "Grup gizlidir; ekip arkadaşlarınız uygulamada bu kodu girerek katılır. Kodu aşağıdaki «Davet» bölümünden paylaşın."
                   : "Müdürünüzden grup kodunu alıp uygulamada \"Gruba katıl\" ile ekibe katılabilirsiniz."}
               </Text>
@@ -929,9 +941,9 @@ export function SettingsScreen() {
               <TouchableOpacity
                 key={u.id}
                 style={styles.ekipCard}
-                disabled={!isMudur}
-                activeOpacity={isMudur ? 0.75 : 1}
-                onPress={() => isMudur && partnerModalAc(u)}
+                disabled={!vardiyaDuzenleyebilir}
+                activeOpacity={vardiyaDuzenleyebilir ? 0.75 : 1}
+                onPress={() => vardiyaDuzenleyebilir && partnerModalAc(u)}
               >
                 <View style={styles.ekipCardLeft}>
                   <View style={[styles.ekipAvatar, {
@@ -967,12 +979,12 @@ export function SettingsScreen() {
                     Partner: {partner?.ad ?? "—"}
                   </Text>
                 </View>
-                {isMudur && (
+                {vardiyaDuzenleyebilir && (
                   <TouchableOpacity style={styles.silBtn} onPress={() => handleUyeSil(u)}>
                     <Ionicons name="trash-outline" size={16} color={colors.danger} />
                   </TouchableOpacity>
                 )}
-                {isMudur && (
+                {vardiyaDuzenleyebilir && (
                   <Ionicons name="chevron-forward" size={18} color={colors.textMuted} style={styles.ekipChevron} />
                 )}
               </TouchableOpacity>
@@ -992,7 +1004,7 @@ export function SettingsScreen() {
               <Text style={styles.grupKod} selectable>
                 {user.grupKodu}
               </Text>
-              {isMudur && (
+              {vardiyaDuzenleyebilir && (
                 <TouchableOpacity style={styles.grupPaylasBtn} onPress={grupKoduPaylas}>
                   <Ionicons name="share-social-outline" size={16} color="#fff" />
                   <Text style={styles.grupPaylasBtnText}>Kodu paylaş</Text>

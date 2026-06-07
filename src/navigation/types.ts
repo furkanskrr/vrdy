@@ -22,6 +22,7 @@ export type MainStackParamList = {
   HesapBilgileri: undefined;
   SifreBelirle: undefined;
   GizlilikPolitikasi: undefined;
+  KullanimRehberi: undefined;
   DelightHub: undefined;
   TemizlikTakvimi: undefined;
 };

@@ -30,6 +30,7 @@ import { SOHBET_AKTIF } from "../constants/features";
 import { GroupChatScreen } from "../screens/GroupChatScreen";
 import { SohbetYakindaScreen } from "../screens/SohbetYakindaScreen";
 import { GizlilikPolitikasiScreen } from "../screens/GizlilikPolitikasiScreen";
+import { KullanimRehberiScreen } from "../screens/KullanimRehberiScreen";
 import { ShiftSwapScreen } from "../screens/ShiftSwapScreen";
 import { TemizlikTakvimiScreen } from "../screens/TemizlikTakvimiScreen";
 import type { AuthStackParamList, MainStackParamList, RecoveryStackParamList } from "./types";
@@ -192,6 +193,11 @@ function MainStackNav() {
         name="GizlilikPolitikasi"
         component={GizlilikPolitikasiScreen}
         options={{ title: "Gizlilik politikası", headerBackTitle: "Geri" }}
+      />
+      <MainStack.Screen
+        name="KullanimRehberi"
+        component={KullanimRehberiScreen}
+        options={{ title: "Kullanım rehberi", headerBackTitle: "Geri" }}
       />
       <MainStack.Screen
         name="DelightHub"

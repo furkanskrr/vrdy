@@ -261,18 +261,6 @@ export function SettingsScreen() {
     }
   }
 
-  function genelYardimGoster() {
-    Alert.alert(
-      "Hızlı rehber",
-      [
-        "• Vardiya: Tablo yatay açılır; değişiklikten sonra «Kaydet» ile sunucuya yazılır.",
-        "• Resmi tatil: Gün başlığına (Pt, Sa…) dokunun; çalışmayan personele hücreden «Resmi tatil» atayın.",
-        "• İzinler: Haftalık izin günü; müdür Ayarlar → İzinler’den düzenler.",
-        "• Ekip bildirimleri: Telefonda izin verirseniz push ile de haberdar olursunuz (ayrı satır).",
-      ].join("\n")
-    );
-  }
-
   async function grupKoduPaylas() {
     if (!user?.grupKodu) return;
     try {
@@ -572,12 +560,18 @@ export function SettingsScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.row} onPress={genelYardimGoster} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => nav.navigate("KullanimRehberi")}
+            activeOpacity={0.7}
+          >
             <View style={[styles.rowLeft, styles.rowLeftTop]}>
               <Ionicons name="help-circle-outline" size={20} color={colors.primary} style={styles.rowIkonUst} />
               <View style={styles.rowTextCol}>
                 <Text style={styles.rowLabel}>Uygulamayı kullanma</Text>
-                <Text style={styles.rowSub}>Vardiya, resmi tatil, izin ve bildirimler için kısa madde listesi.</Text>
+                <Text style={styles.rowSub}>
+                  Tüm sekmeler, roller, vardiya, takas, temizlik ve güncelleme — adım adım detaylı rehber.
+                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />

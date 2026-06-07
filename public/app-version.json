@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minVersion": "1.0.0",
-  "releaseNotes": "Uygulama içi güncelleme sistemi eklendi. Küçük güncellemeler otomatik; büyük güncellemelerde silmeden üzerine kurulum yapılır.",
+  "releaseNotes": "Uygulama içi APK güncelleme: indirme çubuğu ve tek dokunuşla kurulum. Küçük güncellemeler OTA ile otomatik gelir.",
   "androidApkUrl": "https://vrdy.vercel.app/Vardiyam.apk",
-  "easArtifactUrl": "https://expo.dev/artifacts/eas/dcKKHpeR6CFGMkkpnjtdyq.apk",
+  "easArtifactUrl": "https://expo.dev/artifacts/eas/pc1i7AinfiH4YM9UsALeqh.apk",
   "webUrl": "https://vrdy.vercel.app",
   "zorunlu": false
 }

@@ -14,12 +14,16 @@ import {
   type GuncellemeDurumu,
   webSayfasiniYenile,
 } from "../lib/appUpdate";
+import { ApkIndirmeHatasi, androidApkIndirVeKur } from "../lib/androidApkGuncelleme";
 import { UpdateScreen } from "../components/UpdateScreen";
 
 type UpdateContextValue = {
   durum: GuncellemeDurumu;
   kontrolEdiliyor: boolean;
   otaUygulaniyor: boolean;
+  apkIndiriliyor: boolean;
+  indirmeYuzdesi: number;
+  indirmeHatasi: string | null;
   yenidenKontrol: () => Promise<GuncellemeDurumu>;
   guncellemeyiUygula: () => Promise<void>;
 };
@@ -45,6 +49,9 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const [durum, setDurum] = useState<GuncellemeDurumu>({ tur: "guncel" });
   const [kontrolEdiliyor, setKontrolEdiliyor] = useState(true);
   const [otaUygulaniyor, setOtaUygulaniyor] = useState(false);
+  const [apkIndiriliyor, setApkIndiriliyor] = useState(false);
+  const [indirmeYuzdesi, setIndirmeYuzdesi] = useState(0);
+  const [indirmeHatasi, setIndirmeHatasi] = useState<string | null>(null);
 
   const yenidenKontrol = useCallback(async (): Promise<GuncellemeDurumu> => {
     setKontrolEdiliyor(true);
@@ -73,8 +80,29 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (Platform.OS === "android" && config.androidApkUrl) {
-      await androidApkAc(androidApkIndirUrl(config));
+    if (Platform.OS === "android") {
+      setApkIndiriliyor(true);
+      setIndirmeYuzdesi(0);
+      setIndirmeHatasi(null);
+      try {
+        await androidApkIndirVeKur(androidApkIndirUrl(config), (ilerleme) => {
+          setIndirmeYuzdesi(ilerleme.yuzde);
+        });
+      } catch (e) {
+        const mesaj =
+          e instanceof ApkIndirmeHatasi
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : "İndirme başarısız.";
+        try {
+          await androidApkAc(androidApkIndirUrl(config));
+        } catch {
+          setIndirmeHatasi(mesaj);
+        }
+      } finally {
+        setApkIndiriliyor(false);
+      }
       return;
     }
 
@@ -99,10 +127,22 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       durum,
       kontrolEdiliyor,
       otaUygulaniyor,
+      apkIndiriliyor,
+      indirmeYuzdesi,
+      indirmeHatasi,
       yenidenKontrol,
       guncellemeyiUygula,
     }),
-    [durum, kontrolEdiliyor, otaUygulaniyor, yenidenKontrol, guncellemeyiUygula],
+    [
+      durum,
+      kontrolEdiliyor,
+      otaUygulaniyor,
+      apkIndiriliyor,
+      indirmeYuzdesi,
+      indirmeHatasi,
+      yenidenKontrol,
+      guncellemeyiUygula,
+    ],
   );
 
   const guncellemeGoster = durum.tur === "guncelleme";
@@ -114,6 +154,9 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
         <UpdateScreen
           durum={durum}
           yukleniyor={otaUygulaniyor}
+          indiriliyor={apkIndiriliyor}
+          indirmeYuzdesi={indirmeYuzdesi}
+          indirmeHatasi={indirmeHatasi}
           onGuncelle={() => void guncellemeyiUygula()}
           onSonra={
             durum.zorunlu

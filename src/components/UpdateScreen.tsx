@@ -16,6 +16,9 @@ import type { GuncellemeDurumu } from "../lib/appUpdate";
 type Props = {
   durum: Extract<GuncellemeDurumu, { tur: "guncelleme" }>;
   yukleniyor: boolean;
+  indiriliyor?: boolean;
+  indirmeYuzdesi?: number;
+  indirmeHatasi?: string | null;
   onGuncelle: () => void;
   onSonra?: () => void;
 };
@@ -93,6 +96,34 @@ function createStyles(colors: ThemeColors) {
     birincilText: { color: "#fff", fontSize: 16, fontWeight: "700" },
     ikincil: { alignItems: "center", paddingVertical: 10 },
     ikincilText: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
+    progressWrap: { marginBottom: 16 },
+    progressTrack: {
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.surface2,
+      overflow: "hidden",
+    },
+    progressFill: {
+      height: "100%",
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+    },
+    progressText: {
+      marginTop: 8,
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: "center",
+      fontWeight: "600",
+    },
+    hata: {
+      fontSize: 13,
+      color: colors.danger,
+      lineHeight: 20,
+      marginBottom: 16,
+      backgroundColor: colors.danger + "18",
+      borderRadius: 12,
+      padding: 12,
+    },
   });
 }
 
@@ -101,16 +132,27 @@ function platformTalimati(): string {
     return "Güncelle dediğinizde sayfa yenilenir. iPhone’da Ana Ekrana ekli kısayolu kullanıyorsanız uygulama otomatik açılır.";
   }
   if (Platform.OS === "android") {
-    return "Güncelle dediğinizde Vardiyam.apk indirilir. İndirme bitince açıp “Güncelle” deyin; uygulamayı silmenize gerek yok.";
+    return "Güncelle dediğinizde dosya uygulama içinde indirilir. İndirme bitince kurulum ekranı açılır; Yükle'ye basmanız yeterli — silmenize gerek yok.";
   }
   return "Güncelleme arka planda uygulanır.";
 }
 
-export function UpdateScreen({ durum, yukleniyor, onGuncelle, onSonra }: Props) {
+export function UpdateScreen({
+  durum,
+  yukleniyor,
+  indiriliyor = false,
+  indirmeYuzdesi = 0,
+  indirmeHatasi = null,
+  onGuncelle,
+  onSonra,
+}: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const notlar = durum.config.releaseNotes?.trim() || "Hata düzeltmeleri ve iyileştirmeler.";
+  const yuzdeMetin =
+    indirmeYuzdesi > 0 ? `%${Math.round(indirmeYuzdesi * 100)}` : "Bağlanıyor…";
+  const butonDevreDisi = yukleniyor || indiriliyor;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
@@ -127,17 +169,33 @@ export function UpdateScreen({ durum, yukleniyor, onGuncelle, onSonra }: Props) 
         <Text style={styles.notBaslik}>Bu sürümde</Text>
         <Text style={styles.notlar}>{notlar}</Text>
         <Text style={styles.talimat}>{platformTalimati()}</Text>
+        {indiriliyor ? (
+          <View style={styles.progressWrap}>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${Math.max(4, Math.round(indirmeYuzdesi * 100))}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressText}>{yuzdeMetin}</Text>
+          </View>
+        ) : null}
+        {indirmeHatasi ? <Text style={styles.hata}>{indirmeHatasi}</Text> : null}
         <Pressable
           style={styles.birincil}
           onPress={onGuncelle}
-          disabled={yukleniyor}
+          disabled={butonDevreDisi}
         >
-          {yukleniyor ? (
+          {yukleniyor || indiriliyor ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <>
               <Ionicons name="download-outline" size={20} color="#fff" />
-              <Text style={styles.birincilText}>Güncelle</Text>
+              <Text style={styles.birincilText}>
+                {indirmeHatasi ? "Tekrar dene" : "Güncelle"}
+              </Text>
             </>
           )}
         </Pressable>

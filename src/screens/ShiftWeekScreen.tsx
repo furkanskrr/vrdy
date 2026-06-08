@@ -283,6 +283,23 @@ function createShiftWeekStyles(colors: ThemeColors) {
       alignItems: "center",
       zIndex: 10,
     },
+    paylasYukleniyor: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "#00000099",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 20,
+      gap: 12,
+    },
+    paylasYukleniyorText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    paylasimYakalaAlan: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      transform: [{ translateX: -20000 }],
+      opacity: 1,
+      zIndex: -1,
+    },
     modalScroll: { maxHeight: "90%", width: "100%" },
     modalLevha: {
       backgroundColor: colors.surface,
@@ -855,22 +872,14 @@ export function ShiftWeekScreen() {
         </View>
       </ScrollView>
 
-      <View
-        style={
-          Platform.OS === "web"
-            ? {
-                position: "absolute",
-                left: 0,
-                top: 0,
-                zIndex: -1,
-                opacity: 1,
-                pointerEvents: "none",
-              }
-            : { position: "absolute", left: 0, top: 0, opacity: 0, zIndex: -1, pointerEvents: "none" }
-        }
-        pointerEvents="none"
-        collapsable={false}
-      >
+      {paylasiliyor ? (
+        <View style={styles.paylasYukleniyor} pointerEvents="none">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.paylasYukleniyorText}>Vardiya görüntüsü hazırlanıyor…</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.paylasimYakalaAlan} pointerEvents="none" collapsable={false}>
         <View ref={paylasimRef} collapsable={false}>
           {paylasimHazir ? (
             <VardiyaPaylasimTablosu

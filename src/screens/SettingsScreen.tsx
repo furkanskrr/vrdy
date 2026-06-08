@@ -34,9 +34,10 @@ import { useNotification } from "../context/NotificationContext";
 import { useUpdate } from "../context/UpdateContext";
 import {
   probePushSetup,
+  pushDurumOzetiOku,
   requestPushPermissionAndFetchToken,
   savePushToken,
-  shouldOfferPushEnableInSettings,
+  type PushDurumOzeti,
 } from "../lib/notifications";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { ustEkranBoslugu } from "../lib/safeArea";
@@ -88,7 +89,7 @@ export function SettingsScreen() {
   const { bildirimGonder, icBildirimKutusu, setIcBildirimKutusu } = useNotification();
   const { yenidenKontrol, kontrolEdiliyor } = useUpdate();
   const [sekme, setSekme] = useState<Sekme>("genel");
-  const [pushAyarGoster, setPushAyarGoster] = useState(false);
+  const [pushDurum, setPushDurum] = useState<PushDurumOzeti | null>(null);
   const [pushAyarBusy, setPushAyarBusy] = useState(false);
 
   const [partnerModalUye, setPartnerModalUye] = useState<TeamMember | null>(null);
@@ -219,12 +220,12 @@ export function SettingsScreen() {
   }
 
   const yenilePushAyarSatiri = useCallback(async () => {
-    if (!user?.groupId || !isSupabaseConfigured) {
-      setPushAyarGoster(false);
+    if (!user?.groupId) {
+      setPushDurum(null);
       return;
     }
-    const probe = await probePushSetup();
-    setPushAyarGoster(shouldOfferPushEnableInSettings(probe));
+    const ozet = await pushDurumOzetiOku();
+    setPushDurum(ozet);
   }, [user?.groupId]);
 
   useFocusEffect(
@@ -250,9 +251,16 @@ export function SettingsScreen() {
     try {
       const t = await requestPushPermissionAndFetchToken();
       if (t) {
-        await savePushToken(t);
+        const kayit = await savePushToken(t);
         await yenilePushAyarSatiri();
-        bildirimGonder("bilgi", "Bildirimler", "Ekip bildirimleri etkinleştirildi.");
+        if (kayit) {
+          bildirimGonder("bilgi", "Bildirimler", "Ekip bildirimleri etkinleştirildi.");
+        } else {
+          Alert.alert(
+            "Kayıt başarısız",
+            "Bildirim anahtarı alındı ama sunucuya yazılamadı. İnternet bağlantınızı kontrol edin."
+          );
+        }
       } else {
         await yenilePushAyarSatiri();
       }
@@ -418,28 +426,36 @@ export function SettingsScreen() {
             />
           </View>
 
-          {pushAyarGoster ? (
+          {pushDurum ? (
             <TouchableOpacity
               style={[styles.row, styles.pushEnableRow]}
               onPress={() => void handlePushEtkinlestir()}
-              activeOpacity={0.7}
-              disabled={pushAyarBusy}
+              activeOpacity={pushDurum.destekleniyor ? 0.7 : 1}
+              disabled={pushAyarBusy || !pushDurum.destekleniyor}
             >
               <View style={[styles.rowLeft, styles.rowLeftTop]}>
-                <Ionicons name="phone-portrait-outline" size={20} color={colors.afternoon} style={styles.pushEnableIkon} />
+                <Ionicons
+                  name={
+                    pushDurum.sunucudaKayitli
+                      ? "notifications"
+                      : pushDurum.izin === "denied"
+                        ? "notifications-off-outline"
+                        : "phone-portrait-outline"
+                  }
+                  size={20}
+                  color={pushDurum.sunucudaKayitli ? colors.primary : colors.afternoon}
+                  style={styles.pushEnableIkon}
+                />
                 <View style={styles.rowTextCol}>
                   <Text style={styles.rowLabel}>Cihaz bildirimleri (push)</Text>
-                  <Text style={styles.rowSub}>
-                    Ekip olayları için telefonunuzun bildirim izni gerekir. Kapalıysa buradan açmayı deneyin; reddettiyseniz
-                    sistem ayarlarına yönlendirilirsiniz.
-                  </Text>
+                  <Text style={styles.rowSub}>{pushDurum.aciklama}</Text>
                 </View>
               </View>
               {pushAyarBusy ? (
                 <ActivityIndicator color={colors.primary} />
-              ) : (
+              ) : pushDurum.destekleniyor && !pushDurum.sunucudaKayitli ? (
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              )}
+              ) : null}
             </TouchableOpacity>
           ) : null}
 

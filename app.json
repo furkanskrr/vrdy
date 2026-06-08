@@ -26,7 +26,8 @@
       "package": "com.vrdy.app",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
-        "android.permission.REQUEST_INSTALL_PACKAGES"
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {

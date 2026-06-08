@@ -118,14 +118,97 @@ export async function registerForPushNotifications(): Promise<string | null> {
   return requestPushPermissionAndFetchToken();
 }
 
-export async function savePushToken(token: string): Promise<void> {
-  if (!isSupabaseConfigured) return;
+export async function savePushToken(token: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return false;
   const { error } = await supabase.from("profiles").update({ expo_push_token: token }).eq("id", user.id);
-  if (error && __DEV__) {
-    console.warn("[push] Token kaydedilemedi (RLS / ağ):", error.message);
+  if (error) {
+    if (__DEV__) console.warn("[push] Token kaydedilemedi (RLS / ağ):", error.message);
+    return false;
   }
+  return true;
+}
+
+export type PushDurumOzeti = {
+  destekleniyor: boolean;
+  izin: "granted" | "denied" | "undetermined" | "yok";
+  tokenAlindi: boolean;
+  sunucudaKayitli: boolean;
+  aciklama: string;
+};
+
+/** Ayarlar ekranında push durumu göstermek için */
+export async function pushDurumOzetiOku(): Promise<PushDurumOzeti> {
+  if (Platform.OS === "web") {
+    return {
+      destekleniyor: false,
+      izin: "yok",
+      tokenAlindi: false,
+      sunucudaKayitli: false,
+      aciklama: "Tarayıcı / PWA sürümünde telefon bildirimi (push) desteklenmiyor. Android APK veya App Store uygulaması gerekir.",
+    };
+  }
+  const probe = await probePushSetup();
+  if (!probe.available) {
+    return {
+      destekleniyor: false,
+      izin: "yok",
+      tokenAlindi: false,
+      sunucudaKayitli: false,
+      aciklama: "Bu kurulumda push kullanılamıyor (emülatör veya Expo Go olabilir).",
+    };
+  }
+  if (probe.status === "denied") {
+    return {
+      destekleniyor: true,
+      izin: "denied",
+      tokenAlindi: false,
+      sunucudaKayitli: false,
+      aciklama: "Bildirim izni kapalı. Telefon ayarlarından Vardiyam için bildirimleri açın.",
+    };
+  }
+  if (probe.status === "undetermined") {
+    return {
+      destekleniyor: true,
+      izin: "undetermined",
+      tokenAlindi: false,
+      sunucudaKayitli: false,
+      aciklama: "Henüz izin verilmedi. Aşağıdan «Bildirimleri aç» ile etkinleştirin.",
+    };
+  }
+  const token = probe.token;
+  if (!token) {
+    return {
+      destekleniyor: true,
+      izin: "granted",
+      tokenAlindi: false,
+      sunucudaKayitli: false,
+      aciklama:
+        "İzin var ama push anahtarı alınamadı. Yeni bir APK kurun; Expo projesinde FCM/APNs ayarlarını kontrol edin.",
+    };
+  }
+  let sunucudaKayitli = false;
+  if (isSupabaseConfigured) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("expo_push_token")
+        .eq("id", user.id)
+        .maybeSingle();
+      sunucudaKayitli = prof?.expo_push_token === token;
+    }
+  }
+  return {
+    destekleniyor: true,
+    izin: "granted",
+    tokenAlindi: true,
+    sunucudaKayitli,
+    aciklama: sunucudaKayitli
+      ? "Push aktif. Vardiya ve izin değişikliklerinde ekip bildirimi gönderilir."
+      : "Push anahtarı alındı; sunucuya kayıt bekleniyor. «Yenile» ile tekrar deneyin.",
+  };
 }
 
 type ExpoPushTicket = { status: "ok"; id?: string } | { status: "error"; message?: string; details?: unknown };

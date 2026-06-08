@@ -1,5 +1,7 @@
 import "react-native-gesture-handler";
+import { useEffect } from "react";
 import { LogBox, Platform, StyleSheet } from "react-native";
+import { configureNotificationChannel } from "./src/lib/notifications";
 import { UiScaleRoot } from "./src/components/UiScaleRoot";
 
 if (__DEV__) {
@@ -36,6 +38,10 @@ function AppInner() {
 }
 
 export default function App() {
+  useEffect(() => {
+    void configureNotificationChannel();
+  }, []);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider style={styles.root}>

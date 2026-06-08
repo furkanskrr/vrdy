@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   RefreshControl,
@@ -618,8 +619,10 @@ function bubbleRadius(mine: boolean, top: boolean, bottom: boolean) {
 }
 
 const isWeb = Platform.OS === "web";
-/** Absolute composer için liste alt boşluğu (px) */
+/** Composer yüksekliği tahmini (px) */
 const COMPOSER_ALAN = 78;
+/** Web alt sekme çubuğu (px) — klavye kapalıyken composer bunun üstünde */
+const WEB_SEKME_YUKSEKLIK = 56;
 
 export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
@@ -1458,6 +1461,25 @@ export function GroupChatScreen() {
   }
 
   const composerTabPad = altSekmeEkranBoslugu(insets.bottom);
+  const KlavyeSarici = isWeb ? View : KeyboardAvoidingView;
+  const klavyeSariciProps = isWeb
+    ? ({ style: styles.screen } as const)
+    : ({
+        style: styles.screen,
+        behavior: "padding" as const,
+        keyboardVerticalOffset: 0,
+      } as const);
+  const webComposerAlt = klavyeInset > 0 ? klavyeInset : WEB_SEKME_YUKSEKLIK;
+  const chatPaneEk = isWeb ? { paddingBottom: COMPOSER_ALAN + webComposerAlt } : null;
+  const composerDockEk = isWeb
+    ? ({
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: webComposerAlt,
+        zIndex: 20,
+      } as const)
+    : null;
 
   const composerPanel = (
     <>
@@ -1532,7 +1554,7 @@ export function GroupChatScreen() {
   );
 
   return (
-    <View style={styles.screen}>
+    <KlavyeSarici {...klavyeSariciProps}>
       <View style={styles.mainColumn}>
         <View style={[styles.header, { paddingTop: ustPad }]}>
           <View style={styles.headerSatir}>
@@ -1572,7 +1594,7 @@ export function GroupChatScreen() {
           </View>
         </View>
 
-        <View style={[styles.chatPane, { paddingBottom: COMPOSER_ALAN + klavyeInset }]}>
+        <View style={[styles.chatPane, chatPaneEk]}>
           {sabitler.length > 0 ? (
             (() => {
               const sir = Math.min(sabitGosterimSirasi, sabitler.length - 1);
@@ -1671,18 +1693,7 @@ export function GroupChatScreen() {
           )}
         </View>
 
-        <View
-          style={[
-            styles.composerDock,
-            {
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: klavyeInset,
-              paddingBottom: composerTabPad,
-            },
-          ]}
-        >
+        <View style={[styles.composerDock, composerDockEk, { paddingBottom: composerTabPad }]}>
           {composerPanel}
         </View>
       </View>
@@ -1724,6 +1735,6 @@ export function GroupChatScreen() {
         }}
         onIptal={() => setOnay(null)}
       />
-    </View>
+    </KlavyeSarici>
   );
 }

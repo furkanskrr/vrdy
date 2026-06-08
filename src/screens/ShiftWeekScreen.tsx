@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -284,21 +285,22 @@ function createShiftWeekStyles(colors: ThemeColors) {
       zIndex: 10,
     },
     paylasYukleniyor: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: "#00000099",
+      flex: 1,
+      backgroundColor: colors.bg,
       justifyContent: "center",
       alignItems: "center",
-      zIndex: 20,
       gap: 12,
     },
-    paylasYukleniyorText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    paylasYukleniyorText: { color: colors.text, fontSize: 14, fontWeight: "700" },
     paylasimYakalaAlan: {
       position: "absolute",
       top: 0,
       left: 0,
-      right: 0,
-      zIndex: 18,
-      opacity: 1,
+      width: 1,
+      height: 1,
+      overflow: "hidden",
+      opacity: 0,
+      zIndex: -1,
     },
     modalScroll: { maxHeight: "90%", width: "100%" },
     modalLevha: {
@@ -638,11 +640,12 @@ export function ShiftWeekScreen() {
       }
       return;
     }
-    setPaylasimHazir(true);
     setPaylasiliyor(true);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    setPaylasimHazir(true);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     if (Platform.OS === "web") {
-      await new Promise((r) => setTimeout(r, 180));
+      await new Promise((r) => setTimeout(r, 220));
     }
     try {
       await vardiyaTablosuPaylas(paylasimRef);
@@ -894,12 +897,12 @@ export function ShiftWeekScreen() {
         </View>
       </View>
 
-      {paylasiliyor ? (
-        <View style={styles.paylasYukleniyor} pointerEvents="auto">
+      <Modal visible={paylasiliyor} transparent={false} animationType="fade" statusBarTranslucent>
+        <View style={styles.paylasYukleniyor}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.paylasYukleniyorText}>Vardiya görüntüsü hazırlanıyor…</Text>
         </View>
-      ) : null}
+      </Modal>
 
       {picker && (
         <Pressable style={styles.overlay} onPress={() => setPicker(null)}>

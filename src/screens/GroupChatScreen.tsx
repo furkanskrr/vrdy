@@ -1465,17 +1465,7 @@ export function GroupChatScreen() {
         behavior: "padding" as const,
         keyboardVerticalOffset: 0,
       } as const);
-  const webComposerAlt = klavyeInset > 0 ? klavyeInset : WEB_SEKME_YUKSEKLIK;
-  const chatPaneEk = isWeb ? { paddingBottom: COMPOSER_ALAN + webComposerAlt } : null;
-  const composerDockEk = isWeb
-    ? ({
-        position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: webComposerAlt,
-        zIndex: 20,
-      } as const)
-    : null;
+  const composerDockEk = isWeb && klavyeInset > 0 ? { marginBottom: klavyeInset } : null;
 
   const composerPanel = (
     <>

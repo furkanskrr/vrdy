@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   RefreshControl,
@@ -24,7 +23,7 @@ import { playDelightFeedback } from "../lib/delight/feedback";
 import { useAuth } from "../context/AuthContext";
 import { useSohbetOkunmamis } from "../context/SohbetOkunmamisContext";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
-import { useWebKeyboardOverlap } from "../hooks/useWebKeyboardOverlap";
+import { useComposerKeyboardInset } from "../hooks/useComposerKeyboardInset";
 import { altSekmeEkranBoslugu, ustEkranBoslugu } from "../lib/safeArea";
 import type { GrupMesaji, GrupMesajiYanitOzet, TeamRole } from "../types";
 
@@ -622,7 +621,7 @@ const isWeb = Platform.OS === "web";
 
 export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
-  const webKlavyeOverlap = useWebKeyboardOverlap();
+  const klavyeInset = useComposerKeyboardInset();
   const { colors, isDark } = useTheme();
   const delight = useDelight();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -651,6 +650,7 @@ export function GroupChatScreen() {
   const [eylemMesaji, setEylemMesaji] = useState<GrupMesaji | null>(null);
   const [onay, setOnay] = useState<OnayDurum | null>(null);
   const listRef = useRef<FlatList<ChatListItem>>(null);
+  const composerInputRef = useRef<TextInput>(null);
   const ilkScroll = useRef(true);
   const webBasiliTutZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sonOkumaGonderim = useRef(0);
@@ -1455,19 +1455,7 @@ export function GroupChatScreen() {
     );
   }
 
-  const composerAltPad = altSekmeEkranBoslugu(insets.bottom);
-  const KlavyeSarici = isWeb || Platform.OS === "android" ? View : KeyboardAvoidingView;
-  const klavyeSariciProps = isWeb
-    ? ({
-        style: [styles.screen, webKlavyeOverlap > 0 ? { paddingBottom: webKlavyeOverlap } : null],
-      } as const)
-    : Platform.OS === "android"
-      ? ({ style: styles.screen } as const)
-      : ({
-          style: styles.screen,
-          behavior: "padding" as const,
-          keyboardVerticalOffset: 0,
-        } as const);
+  const composerAltPad = altSekmeEkranBoslugu(insets.bottom) + klavyeInset;
 
   const composerPanel = (
     <>
@@ -1493,6 +1481,7 @@ export function GroupChatScreen() {
       ) : null}
       <View style={styles.composerPill}>
         <TextInput
+          ref={composerInputRef}
           style={styles.input}
           placeholder="Mesaj yazın…"
           placeholderTextColor={colors.textMuted}
@@ -1504,7 +1493,13 @@ export function GroupChatScreen() {
           textAlignVertical="center"
           underlineColorAndroid="transparent"
           onFocus={() => {
-            if (isWeb) return;
+            if (isWeb) {
+              requestAnimationFrame(() => {
+                const dom = composerInputRef.current as unknown as HTMLElement | null;
+                dom?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+              });
+              return;
+            }
             requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
           }}
         />
@@ -1535,7 +1530,7 @@ export function GroupChatScreen() {
   );
 
   return (
-    <KlavyeSarici {...klavyeSariciProps}>
+    <View style={styles.screen}>
       <View style={styles.mainColumn}>
         <View style={[styles.header, { paddingTop: ustPad }]}>
           <View style={styles.headerSatir}>
@@ -1716,6 +1711,6 @@ export function GroupChatScreen() {
         }}
         onIptal={() => setOnay(null)}
       />
-    </KlavyeSarici>
+    </View>
   );
 }

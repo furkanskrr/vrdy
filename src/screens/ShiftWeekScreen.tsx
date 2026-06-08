@@ -624,6 +624,9 @@ export function ShiftWeekScreen() {
     setPaylasimHazir(true);
     setPaylasiliyor(true);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    if (Platform.OS === "web") {
+      await new Promise((r) => setTimeout(r, 180));
+    }
     try {
       await vardiyaTablosuPaylas(paylasimRef);
     } finally {
@@ -853,7 +856,18 @@ export function ShiftWeekScreen() {
       </ScrollView>
 
       <View
-        style={{ position: "absolute", left: -12000, top: 0, opacity: 0 }}
+        style={
+          Platform.OS === "web"
+            ? {
+                position: "absolute",
+                left: 0,
+                top: 0,
+                zIndex: -1,
+                opacity: 1,
+                pointerEvents: "none",
+              }
+            : { position: "absolute", left: 0, top: 0, opacity: 0, zIndex: -1, pointerEvents: "none" }
+        }
         pointerEvents="none"
         collapsable={false}
       >

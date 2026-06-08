@@ -12,7 +12,8 @@ export function useWebKeyboardOverlap(): number {
 
     const guncelle = () => {
       const gap = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
-      setOverlap(gap > 48 ? Math.round(gap) : 0);
+      const overlap = Math.round(gap);
+      setOverlap(overlap > 20 ? overlap : 0);
       if (vv.offsetTop > 0) window.scrollTo(0, 0);
     };
 

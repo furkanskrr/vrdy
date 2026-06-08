@@ -296,9 +296,9 @@ function createShiftWeekStyles(colors: ThemeColors) {
       position: "absolute",
       top: 0,
       left: 0,
-      transform: [{ translateX: -20000 }],
+      right: 0,
+      zIndex: 18,
       opacity: 1,
-      zIndex: -1,
     },
     modalScroll: { maxHeight: "90%", width: "100%" },
     modalLevha: {
@@ -646,6 +646,9 @@ export function ShiftWeekScreen() {
     }
     try {
       await vardiyaTablosuPaylas(paylasimRef);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Görüntü oluşturulamadı.";
+      Alert.alert("Paylaş", msg);
     } finally {
       setPaylasiliyor(false);
       setPaylasimHazir(false);
@@ -872,13 +875,6 @@ export function ShiftWeekScreen() {
         </View>
       </ScrollView>
 
-      {paylasiliyor ? (
-        <View style={styles.paylasYukleniyor} pointerEvents="none">
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.paylasYukleniyorText}>Vardiya görüntüsü hazırlanıyor…</Text>
-        </View>
-      ) : null}
-
       <View style={styles.paylasimYakalaAlan} pointerEvents="none" collapsable={false}>
         <View ref={paylasimRef} collapsable={false}>
           {paylasimHazir ? (
@@ -897,6 +893,13 @@ export function ShiftWeekScreen() {
           ) : null}
         </View>
       </View>
+
+      {paylasiliyor ? (
+        <View style={styles.paylasYukleniyor} pointerEvents="auto">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.paylasYukleniyorText}>Vardiya görüntüsü hazırlanıyor…</Text>
+        </View>
+      ) : null}
 
       {picker && (
         <Pressable style={styles.overlay} onPress={() => setPicker(null)}>

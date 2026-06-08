@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   RefreshControl,
@@ -619,8 +618,8 @@ function bubbleRadius(mine: boolean, top: boolean, bottom: boolean) {
 }
 
 const isWeb = Platform.OS === "web";
-/** Web’de absolute composer için liste alt boşluğu (px) */
-const WEB_COMPOSER_ALAN = 78;
+/** Absolute composer için liste alt boşluğu (px) */
+const COMPOSER_ALAN = 78;
 
 export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
@@ -1459,11 +1458,6 @@ export function GroupChatScreen() {
   }
 
   const composerTabPad = altSekmeEkranBoslugu(insets.bottom);
-  const KlavyeSarici = Platform.OS === "ios" ? KeyboardAvoidingView : View;
-  const klavyeSariciProps =
-    Platform.OS === "ios"
-      ? ({ style: styles.screen, behavior: "padding" as const, keyboardVerticalOffset: 0 } as const)
-      : ({ style: styles.screen } as const);
 
   const composerPanel = (
     <>
@@ -1538,7 +1532,7 @@ export function GroupChatScreen() {
   );
 
   return (
-    <KlavyeSarici {...klavyeSariciProps}>
+    <View style={styles.screen}>
       <View style={styles.mainColumn}>
         <View style={[styles.header, { paddingTop: ustPad }]}>
           <View style={styles.headerSatir}>
@@ -1578,12 +1572,7 @@ export function GroupChatScreen() {
           </View>
         </View>
 
-        <View
-          style={[
-            styles.chatPane,
-            isWeb ? { paddingBottom: WEB_COMPOSER_ALAN + klavyeInset } : null,
-          ]}
-        >
+        <View style={[styles.chatPane, { paddingBottom: COMPOSER_ALAN + klavyeInset }]}>
           {sabitler.length > 0 ? (
             (() => {
               const sir = Math.min(sabitGosterimSirasi, sabitler.length - 1);
@@ -1685,15 +1674,13 @@ export function GroupChatScreen() {
         <View
           style={[
             styles.composerDock,
-            isWeb
-              ? {
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: klavyeInset,
-                  paddingBottom: composerTabPad,
-                }
-              : { paddingBottom: composerTabPad },
+            {
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: klavyeInset,
+              paddingBottom: composerTabPad,
+            },
           ]}
         >
           {composerPanel}
@@ -1737,6 +1724,6 @@ export function GroupChatScreen() {
         }}
         onIptal={() => setOnay(null)}
       />
-    </KlavyeSarici>
+    </View>
   );
 }

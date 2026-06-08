@@ -619,10 +619,6 @@ function bubbleRadius(mine: boolean, top: boolean, bottom: boolean) {
 }
 
 const isWeb = Platform.OS === "web";
-/** Composer yüksekliği tahmini (px) */
-const COMPOSER_ALAN = 78;
-/** Web alt sekme çubuğu (px) — klavye kapalıyken composer bunun üstünde */
-const WEB_SEKME_YUKSEKLIK = 56;
 
 export function GroupChatScreen() {
   const insets = useSafeAreaInsets();
@@ -1594,7 +1590,7 @@ export function GroupChatScreen() {
           </View>
         </View>
 
-        <View style={[styles.chatPane, chatPaneEk]}>
+        <View style={styles.chatPane}>
           {sabitler.length > 0 ? (
             (() => {
               const sir = Math.min(sabitGosterimSirasi, sabitler.length - 1);

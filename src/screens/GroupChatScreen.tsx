@@ -32,6 +32,8 @@ import {
   kisayollariYukle,
   type SohbetKisayolu,
 } from "../lib/chatShortcuts";
+import { grupMesajiSil } from "../lib/groupChatDelete";
+import { grupMesajiDuzenle } from "../lib/groupChatEdit";
 import { grupMesajiGonder } from "../lib/groupChatSend";
 import { sohbetEkiYukle, type SohbetEkTaslak } from "../lib/groupChatMedia";
 import { sohbetDosyaSec, sohbetFotoSec } from "../lib/sohbetMedyaSec";
@@ -92,7 +94,35 @@ function sabitTabloYokMesaji(msg: string): boolean {
 
 type OnayDurum =
   | { tur: "sabitle"; mesajId: string }
-  | { tur: "kaldir"; pinId: string; mesajId: string };
+  | { tur: "kaldir"; pinId: string; mesajId: string }
+  | { tur: "sil"; mesajId: string };
+
+function mesajSilebilirMi(m: GrupMesaji, uid: string | null, rol: TeamRole | undefined): boolean {
+  if (!uid) return false;
+  if (m.profile_id === uid) return true;
+  return rol === "mudur" || rol === "yardimci";
+}
+
+function mesajDuzenleyebilirMi(m: GrupMesaji, uid: string | null): boolean {
+  return !!uid && m.profile_id === uid;
+}
+
+function mesajGovdesiGuncelle(prev: GrupMesaji[], row: GrupMesaji): GrupMesaji[] {
+  return prev.map((m) => {
+    if (m.id === row.id) {
+      return {
+        ...m,
+        ...row,
+        reply_parent: m.reply_parent,
+        attachment_url: m.attachment_url,
+      };
+    }
+    if (m.reply_parent?.id === row.id) {
+      return { ...m, reply_parent: { ...m.reply_parent, body: row.body } };
+    }
+    return m;
+  });
+}
 
 function ayniGun(aIso: string, bIso: string): boolean {
   try {
@@ -320,9 +350,13 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       rowGap: 2,
     },
     bodyMetin: { flexShrink: 1 },
+    zamanKolon: { alignItems: "flex-end", marginLeft: 6 },
     zaman: { fontSize: 10, fontWeight: "600", lineHeight: 14, marginBottom: 1 },
     zamanMine: { color: "rgba(255,255,255,0.78)" },
     zamanOther: { color: colors.textMuted },
+    duzenlendi: { fontSize: 9, fontWeight: "600", fontStyle: "italic", lineHeight: 12 },
+    duzenlendiMine: { color: "rgba(255,255,255,0.65)" },
+    duzenlendiOther: { color: colors.textMuted },
     okumaOzeti: {
       alignSelf: "flex-end",
       maxWidth: "100%",
@@ -571,6 +605,14 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
   });
 }
 
+function mesajOzeti(m: GrupMesaji, max = 120): string {
+  const metin = m.body?.trim();
+  if (metin) return alintiOzetKisalt(metin, max);
+  if (m.attachment_type === "image") return "📷 Fotoğraf";
+  if (m.attachment_path) return `📎 ${m.attachment_name?.trim() || "Dosya"}`;
+  return "";
+}
+
 function alintiOzetKisalt(body: string, max = 120): string {
   const t = body.trim().replace(/\s+/g, " ");
   if (t.length <= max) return t;
@@ -689,6 +731,7 @@ export function GroupChatScreen() {
   const [hata, setHata] = useState<string | null>(null);
   const [okumaDestegi, setOkumaDestegi] = useState(true);
   const [yanitHedef, setYanitHedef] = useState<GrupMesaji | null>(null);
+  const [duzenleHedef, setDuzenleHedef] = useState<GrupMesaji | null>(null);
   const [sabitler, setSabitler] = useState<SabitOge[]>([]);
   /** 0 = en son sabitlenen (en yeni); artan = daha eski */
   const [sabitGosterimSirasi, setSabitGosterimSirasi] = useState(0);
@@ -828,7 +871,7 @@ export function GroupChatScreen() {
     const msgRes = await supabase
       .from("group_messages")
       .select(
-        "id, group_id, profile_id, sender_ad, body, created_at, reply_to_id, attachment_type, attachment_path, attachment_name, attachment_mime"
+        "id, group_id, profile_id, sender_ad, body, created_at, edited_at, reply_to_id, attachment_type, attachment_path, attachment_name, attachment_mime"
       )
       .eq("group_id", groupId)
       .order("created_at", { ascending: false })
@@ -1075,6 +1118,41 @@ export function GroupChatScreen() {
           });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "group_messages",
+          filter: `group_id=eq.${groupId}`,
+        },
+        (payload) => {
+          const row = payload.new as GrupMesaji;
+          if (!row?.id) return;
+          setMesajlar((prev) => mesajGovdesiGuncelle(prev, row));
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "group_messages",
+          filter: `group_id=eq.${groupId}`,
+        },
+        (payload) => {
+          const silinenId = (payload.old as { id?: string } | undefined)?.id;
+          if (!silinenId) return;
+          setMesajlar((prev) =>
+            prev
+              .filter((m) => m.id !== silinenId)
+              .map((m) =>
+                m.reply_to_id === silinenId ? { ...m, reply_to_id: null, reply_parent: undefined } : m
+              )
+          );
+          setSabitler((prev) => prev.filter((s) => s.messageId !== silinenId));
+        }
+      )
       .subscribe();
 
     return () => {
@@ -1227,6 +1305,32 @@ export function GroupChatScreen() {
     [groupId, sabitleriYukle, sabitleLegacyGuncelle, sabitleLegacyTemizle]
   );
 
+  const mesajSilUygula = useCallback(
+    async (mesajId: string) => {
+      if (!groupId) return;
+      const sonuc = await grupMesajiSil(groupId, mesajId);
+      if (!sonuc.ok) {
+        Alert.alert("Mesaj silinemedi", sonuc.mesaj);
+        return;
+      }
+      setMesajlar((prev) =>
+        prev
+          .filter((m) => m.id !== mesajId)
+          .map((m) =>
+            m.reply_to_id === mesajId ? { ...m, reply_to_id: null, reply_parent: undefined } : m
+          )
+      );
+      setSabitler((prev) => prev.filter((s) => s.messageId !== mesajId));
+      setYanitHedef((prev) => (prev?.id === mesajId ? null : prev));
+      setEylemMesaji((prev) => (prev?.id === mesajId ? null : prev));
+      void playDelightFeedback("success", {
+        hapticsEnabled: delight.uiHapticsEnabled,
+        soundsEnabled: delight.uiSoundsEnabled,
+      });
+    },
+    [groupId, delight]
+  );
+
   const sabitleKaldirUygula = useCallback(
     async (pinId: string, mesajId?: string) => {
       if (!groupId) return;
@@ -1288,7 +1392,15 @@ export function GroupChatScreen() {
 
   async function gonder() {
     const body = taslak.trim();
-    if ((!body && !bekleyenEk) || !groupId || !user || gonderiliyor) return;
+    const duzenleModu = duzenleHedef !== null;
+    const ekVar = duzenleModu ? !!duzenleHedef.attachment_path : !!bekleyenEk;
+
+    if (duzenleModu) {
+      if (!body && !ekVar) return;
+    } else if (!body && !bekleyenEk) {
+      return;
+    }
+    if (!groupId || !user || gonderiliyor) return;
     if (body.length > MESAJ_UZUNLUK_MAX) {
       setHata(`En fazla ${MESAJ_UZUNLUK_MAX} karakter.`);
       return;
@@ -1302,6 +1414,29 @@ export function GroupChatScreen() {
       const uid = sess.session?.user?.id;
       if (!uid) {
         Alert.alert("Oturum", "Kimlik doğrulanamadı. Çıkış yapıp tekrar giriş yapın.");
+        return;
+      }
+
+      if (duzenleModu && duzenleHedef) {
+        const yeniGovde = body || (ekVar ? " " : "");
+        if (yeniGovde === duzenleHedef.body) {
+          setDuzenleHedef(null);
+          setTaslak("");
+          return;
+        }
+        const duzenleSonuc = await grupMesajiDuzenle(groupId, duzenleHedef.id, body, ekVar);
+        if (!duzenleSonuc.ok) {
+          setHata(duzenleSonuc.mesaj);
+          Alert.alert("Düzenlenemedi", duzenleSonuc.mesaj);
+          return;
+        }
+        setMesajlar((prev) => mesajGovdesiGuncelle(prev, duzenleSonuc.row));
+        setDuzenleHedef(null);
+        setTaslak("");
+        void playDelightFeedback("success", {
+          hapticsEnabled: delight.uiHapticsEnabled,
+          soundsEnabled: delight.uiSoundsEnabled,
+        });
         return;
       }
 
@@ -1590,9 +1725,21 @@ export function GroupChatScreen() {
                 {m.body.trim() ? (
                   <Text style={[styles.body, styles.bodyMetin, mine && styles.bodyMine]}>{m.body}</Text>
                 ) : null}
-                <Text style={[styles.zaman, mine ? styles.zamanMine : styles.zamanOther]}>
-                  {saatKisa(m.created_at)}
-                </Text>
+                <View style={styles.zamanKolon}>
+                  {m.edited_at ? (
+                    <Text
+                      style={[
+                        styles.duzenlendi,
+                        mine ? styles.duzenlendiMine : styles.duzenlendiOther,
+                      ]}
+                    >
+                      düzenlendi
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.zaman, mine ? styles.zamanMine : styles.zamanOther]}>
+                    {saatKisa(m.created_at)}
+                  </Text>
+                </View>
               </View>
             </Pressable>
             {mine &&
@@ -1682,6 +1829,28 @@ export function GroupChatScreen() {
           </Pressable>
         </View>
       ) : null}
+      {duzenleHedef ? (
+        <View style={styles.yanitBant}>
+          <View style={styles.yanitBantMetin}>
+            <Text style={styles.yanitBantBaslik}>Düzenle</Text>
+            <Text style={styles.yanitBantOz} numberOfLines={1}>
+              {mesajOzeti(duzenleHedef, 72)}
+            </Text>
+          </View>
+          <Pressable
+            style={styles.yanitBantKapat}
+            onPress={() => {
+              setDuzenleHedef(null);
+              setTaslak("");
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Düzenlemeyi iptal et"
+          >
+            <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
+      ) : null}
       {bekleyenEk ? (
         <View style={styles.ekOnizleme}>
           {bekleyenEk.tur === "image" ? (
@@ -1702,24 +1871,32 @@ export function GroupChatScreen() {
           <Pressable
             style={styles.ekBtn}
             onPress={() => void fotoSec()}
-            disabled={gonderiliyor}
+            disabled={gonderiliyor || !!duzenleHedef}
             accessibilityLabel="Fotoğraf ekle"
           >
-            <Ionicons name="image-outline" size={22} color={colors.primary} />
+            <Ionicons
+              name="image-outline"
+              size={22}
+              color={duzenleHedef ? colors.textMuted : colors.primary}
+            />
           </Pressable>
           <Pressable
             style={styles.ekBtn}
             onPress={() => void dosyaSec()}
-            disabled={gonderiliyor}
+            disabled={gonderiliyor || !!duzenleHedef}
             accessibilityLabel="Dosya ekle"
           >
-            <Ionicons name="attach-outline" size={22} color={colors.primary} />
+            <Ionicons
+              name="attach-outline"
+              size={22}
+              color={duzenleHedef ? colors.textMuted : colors.primary}
+            />
           </Pressable>
         </View>
         <TextInput
           ref={composerInputRef}
           style={styles.input}
-          placeholder="Mesaj yazın…"
+          placeholder={duzenleHedef ? "Mesajı düzenle…" : "Mesaj yazın…"}
           placeholderTextColor={colors.textMuted}
           value={taslak}
           onChangeText={setTaslak}
@@ -1742,18 +1919,25 @@ export function GroupChatScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.gonderBtn,
-            ((!taslak.trim() && !bekleyenEk) || gonderiliyor) && styles.gonderBtnDisabled,
-            pressed && (taslak.trim() || bekleyenEk) && !gonderiliyor ? { opacity: 0.88 } : null,
+            ((!taslak.trim() && !bekleyenEk && !duzenleHedef?.attachment_path) || gonderiliyor) &&
+              styles.gonderBtnDisabled,
+            pressed &&
+              (taslak.trim() || bekleyenEk || duzenleHedef?.attachment_path) &&
+              !gonderiliyor
+              ? { opacity: 0.88 }
+              : null,
           ]}
           onPress={() => void gonder()}
-          disabled={(!taslak.trim() && !bekleyenEk) || gonderiliyor}
+          disabled={
+            (!taslak.trim() && !bekleyenEk && !duzenleHedef?.attachment_path) || gonderiliyor
+          }
           accessibilityRole="button"
-          accessibilityLabel="Gönder"
+          accessibilityLabel={duzenleHedef ? "Kaydet" : "Gönder"}
         >
           {gonderiliyor ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Ionicons name="arrow-up" size={16} color="#fff" />
+            <Ionicons name={duzenleHedef ? "checkmark" : "arrow-up"} size={16} color="#fff" />
           )}
         </Pressable>
       </View>
@@ -1923,9 +2107,30 @@ export function GroupChatScreen() {
         mesaj={eylemMesaji}
         colors={colors}
         mesajSabitli={eylemMesaji ? sabitMesajIdleri.has(eylemMesaji.id) : false}
+        silGoster={
+          eylemMesaji ? mesajSilebilirMi(eylemMesaji, uidForListe, user?.rol) : false
+        }
+        duzenleGoster={
+          eylemMesaji ? mesajDuzenleyebilirMi(eylemMesaji, uidForListe) : false
+        }
         onKapat={() => setEylemMesaji(null)}
         onYanitla={() => {
-          if (eylemMesaji) setYanitHedef(eylemMesaji);
+          if (eylemMesaji) {
+            setDuzenleHedef(null);
+            setTaslak("");
+            setYanitHedef(eylemMesaji);
+          }
+        }}
+        onDuzenle={() => {
+          if (!eylemMesaji) return;
+          setYanitHedef(null);
+          setBekleyenEk(null);
+          setDuzenleHedef(eylemMesaji);
+          setTaslak(eylemMesaji.body.trim());
+          requestAnimationFrame(() => {
+            composerInputRef.current?.focus();
+            listRef.current?.scrollToEnd({ animated: true });
+          });
         }}
         onSabitleIste={() => {
           if (eylemMesaji) setOnay({ tur: "sabitle", mesajId: eylemMesaji.id });
@@ -1934,6 +2139,9 @@ export function GroupChatScreen() {
           if (!eylemMesaji) return;
           const s = sabitler.find((x) => x.messageId === eylemMesaji.id);
           if (s) setOnay({ tur: "kaldir", pinId: s.pinId, mesajId: eylemMesaji.id });
+        }}
+        onSilIste={() => {
+          if (eylemMesaji) setOnay({ tur: "sil", mesajId: eylemMesaji.id });
         }}
       />
 
@@ -1951,18 +2159,29 @@ export function GroupChatScreen() {
 
       <KritikOnayModal
         gorunur={onay !== null}
-        baslik={onay?.tur === "sabitle" ? "Duyuruya sabitle" : "Sabitlemeyi kaldır"}
+        baslik={
+          onay?.tur === "sabitle"
+            ? "Duyuruya sabitle"
+            : onay?.tur === "sil"
+              ? "Mesajı sil"
+              : "Sabitlemeyi kaldır"
+        }
         aciklama={
           onay?.tur === "sabitle"
             ? "Bu mesaj sabit duyurulara eklenecek; ekip üstte görebilir. Onaylıyor musunuz?"
-            : "Bu mesaj sabit duyurulardan kaldırılacak. Onaylıyor musunuz?"
+            : onay?.tur === "sil"
+              ? "Bu mesaj herkesten kalıcı olarak silinecek. Onaylıyor musunuz?"
+              : "Bu mesaj sabit duyurulardan kaldırılacak. Onaylıyor musunuz?"
         }
-        onayLabel={onay?.tur === "sabitle" ? "Sabitle" : "Kaldır"}
-        tehlikeli={onay?.tur === "kaldir"}
+        onayLabel={
+          onay?.tur === "sabitle" ? "Sabitle" : onay?.tur === "sil" ? "Sil" : "Kaldır"
+        }
+        tehlikeli={onay?.tur === "kaldir" || onay?.tur === "sil"}
         colors={colors}
         onOnay={async () => {
           if (!onay) return;
           if (onay.tur === "sabitle") await sabitleEkleUygula(onay.mesajId);
+          else if (onay.tur === "sil") await mesajSilUygula(onay.mesajId);
           else await sabitleKaldirUygula(onay.pinId, onay.mesajId);
         }}
         onIptal={() => setOnay(null)}

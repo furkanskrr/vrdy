@@ -9,125 +9,249 @@ type MesajEylemAltSayfaProps = {
   mesaj: GrupMesaji | null;
   colors: ThemeColors;
   mesajSabitli: boolean;
+  silGoster: boolean;
+  duzenleGoster: boolean;
   onKapat: () => void;
   onYanitla: () => void;
+  onDuzenle: () => void;
   onSabitleIste: () => void;
   onSabitleKaldirIste: () => void;
+  onSilIste: () => void;
 };
+
+function mesajOzetMetni(m: GrupMesaji | null): string {
+  if (!m) return "";
+  const metin = m.body?.trim();
+  if (metin) return metin;
+  if (m.attachment_type === "image") return "📷 Fotoğraf";
+  if (m.attachment_path) return `📎 ${m.attachment_name?.trim() || "Dosya"}`;
+  return "";
+}
+
+function EylemSatiri({
+  ikon,
+  ikonRenk,
+  metin,
+  metinRenk,
+  colors,
+  onPress,
+  altCizgi,
+}: {
+  ikon: keyof typeof Ionicons.glyphMap;
+  ikonRenk: string;
+  metin: string;
+  metinRenk?: string;
+  colors: ThemeColors;
+  onPress: () => void;
+  altCizgi?: boolean;
+}) {
+  const st = eylemSatiriStiller(colors);
+  return (
+    <Pressable
+      style={({ pressed }) => [st.satir, altCizgi && st.satirAltCizgi, pressed && st.satirPressed]}
+      onPress={onPress}
+    >
+      <Ionicons name={ikon} size={22} color={ikonRenk} />
+      <Text style={[st.satirText, metinRenk ? { color: metinRenk } : null]}>{metin}</Text>
+    </Pressable>
+  );
+}
 
 export function MesajEylemAltSayfa({
   gorunur,
   mesaj,
   colors,
   mesajSabitli,
+  silGoster,
+  duzenleGoster,
   onKapat,
   onYanitla,
+  onDuzenle,
   onSabitleIste,
   onSabitleKaldirIste,
+  onSilIste,
 }: MesajEylemAltSayfaProps) {
   const insets = useSafeAreaInsets();
-  const st = sheetStyles(colors);
+  const st = mesajEylemModalStiller(colors);
 
   return (
     <Modal visible={gorunur} transparent animationType="fade" onRequestClose={onKapat}>
-      <Pressable style={st.backdrop} onPress={onKapat}>
-        <Pressable style={[st.sheet, { paddingBottom: Math.max(16, insets.bottom + 8) }]} onPress={(e) => e.stopPropagation()}>
-          <View style={st.grabber} />
-          <Text style={st.sheetBaslik} numberOfLines={1}>
-            {mesaj?.sender_ad ?? "Mesaj"}
-          </Text>
-          <Text style={st.sheetOz} numberOfLines={3}>
-            {mesaj?.body ?? ""}
-          </Text>
-
-          <Pressable
-            style={({ pressed }) => [st.satir, pressed && st.satirPressed]}
-            onPress={() => {
-              onYanitla();
-              onKapat();
-            }}
-          >
-            <Ionicons name="arrow-undo-outline" size={22} color={colors.primary} />
-            <Text style={st.satirText}>Yanıtla</Text>
-          </Pressable>
-
-          {mesajSabitli ? (
+      <View
+        style={[
+          st.arka,
+          {
+            paddingTop: Math.max(24, insets.top + 12),
+            paddingBottom: Math.max(24, insets.bottom + 12),
+            paddingHorizontal: Math.max(24, insets.left + 20, insets.right + 20),
+          },
+        ]}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onKapat}
+          accessibilityRole="button"
+          accessibilityLabel="Menüyü kapat"
+        />
+        <View style={st.kart}>
+          <View style={st.ustSatir}>
+            <View style={st.ustMetin}>
+              <Text style={st.baslik} numberOfLines={1}>
+                {mesaj?.sender_ad ?? "Mesaj"}
+              </Text>
+              <Text style={st.ozet} numberOfLines={3}>
+                {mesajOzetMetni(mesaj)}
+              </Text>
+            </View>
             <Pressable
-              style={({ pressed }) => [st.satir, pressed && st.satirPressed]}
+              style={({ pressed }) => [st.kapatBtn, pressed && st.kapatBtnPressed]}
+              onPress={onKapat}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
+            >
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </Pressable>
+          </View>
+
+          <View style={st.eylemler}>
+            <EylemSatiri
+              ikon="arrow-undo-outline"
+              ikonRenk={colors.primary}
+              metin="Yanıtla"
+              colors={colors}
+              altCizgi
               onPress={() => {
-                onSabitleKaldirIste();
+                onYanitla();
                 onKapat();
               }}
-            >
-              <Ionicons name="pin-outline" size={22} color={colors.afternoon} />
-              <Text style={[st.satirText, { color: colors.afternoon }]}>Sabitlemeyi kaldır</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={({ pressed }) => [st.satir, pressed && st.satirPressed]}
-              onPress={() => {
-                onSabitleIste();
-                onKapat();
-              }}
-            >
-              <Ionicons name="pin" size={22} color={colors.primary} />
-              <Text style={st.satirText}>Duyuruya sabitle</Text>
-            </Pressable>
-          )}
+            />
 
-          <Pressable style={({ pressed }) => [st.satir, st.iptalSatir, pressed && st.satirPressed]} onPress={onKapat}>
-            <Ionicons name="close-circle-outline" size={22} color={colors.textMuted} />
-            <Text style={[st.satirText, { color: colors.textMuted }]}>Kapat</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
+            {duzenleGoster ? (
+              <EylemSatiri
+                ikon="create-outline"
+                ikonRenk={colors.primary}
+                metin="Düzenle"
+                colors={colors}
+                altCizgi
+                onPress={() => {
+                  onDuzenle();
+                  onKapat();
+                }}
+              />
+            ) : null}
+
+            {mesajSabitli ? (
+              <EylemSatiri
+                ikon="pin-outline"
+                ikonRenk={colors.afternoon}
+                metin="Sabitlemeyi kaldır"
+                metinRenk={colors.afternoon}
+                colors={colors}
+                altCizgi
+                onPress={() => {
+                  onSabitleKaldirIste();
+                  onKapat();
+                }}
+              />
+            ) : (
+              <EylemSatiri
+                ikon="pin"
+                ikonRenk={colors.primary}
+                metin="Duyuruya sabitle"
+                colors={colors}
+                altCizgi
+                onPress={() => {
+                  onSabitleIste();
+                  onKapat();
+                }}
+              />
+            )}
+
+            {silGoster ? (
+              <EylemSatiri
+                ikon="trash-outline"
+                ikonRenk={colors.danger}
+                metin="Mesajı sil"
+                metinRenk={colors.danger}
+                colors={colors}
+                onPress={() => {
+                  onSilIste();
+                  onKapat();
+                }}
+              />
+            ) : null}
+          </View>
+        </View>
+      </View>
     </Modal>
   );
 }
 
-function sheetStyles(colors: ThemeColors) {
+function mesajEylemModalStiller(colors: ThemeColors) {
   return StyleSheet.create({
-    backdrop: {
+    arka: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      justifyContent: "flex-end",
+      backgroundColor: "rgba(0,0,0,0.5)",
+      alignItems: "center",
+      justifyContent: "center",
     },
-    sheet: {
+    kart: {
+      width: "100%",
+      maxWidth: 360,
       backgroundColor: colors.surface,
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      paddingHorizontal: 18,
-      paddingTop: 10,
-      borderTopWidth: StyleSheet.hairlineWidth,
+      borderRadius: 18,
+      borderWidth: 1,
       borderColor: colors.border,
+      overflow: "hidden",
+      zIndex: 1,
     },
-    grabber: {
-      alignSelf: "center",
-      width: 44,
-      height: 5,
-      borderRadius: 3,
-      backgroundColor: colors.border,
-      marginBottom: 14,
+    ustSatir: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      paddingTop: 16,
+      paddingLeft: 18,
+      paddingRight: 12,
+      paddingBottom: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
     },
-    sheetBaslik: { fontSize: 18, fontWeight: "800", color: colors.text, letterSpacing: -0.2 },
-    sheetOz: {
+    ustMetin: { flex: 1, minWidth: 0 },
+    baslik: { fontSize: 17, fontWeight: "800", color: colors.text, letterSpacing: -0.2 },
+    ozet: {
       fontSize: 14,
       color: colors.textMuted,
-      marginTop: 8,
+      marginTop: 6,
       lineHeight: 20,
-      marginBottom: 14,
     },
+    kapatBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface2,
+    },
+    kapatBtnPressed: { opacity: 0.75 },
+    eylemler: { paddingVertical: 4 },
+  });
+}
+
+function eylemSatiriStiller(colors: ThemeColors) {
+  return StyleSheet.create({
     satir: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
       paddingVertical: 14,
-      paddingHorizontal: 4,
-      borderRadius: 12,
+      paddingHorizontal: 18,
     },
-    satirPressed: { opacity: 0.85, backgroundColor: colors.surface2 },
+    satirAltCizgi: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    satirPressed: { backgroundColor: colors.surface2 },
     satirText: { fontSize: 16, fontWeight: "600", color: colors.text, flex: 1 },
-    iptalSatir: { marginTop: 4 },
   });
 }
 

@@ -31,6 +31,7 @@ export type GrupMesaji = {
   sender_ad: string;
   body: string;
   created_at: string;
+  edited_at?: string | null;
   reply_to_id?: string | null;
   attachment_type?: SohbetEkTuru | null;
   attachment_path?: string | null;

@@ -67,6 +67,45 @@ export async function sohbetEkImzaliUrl(path: string): Promise<string | null> {
   return data?.signedUrl ?? null;
 }
 
+function blobDataUri(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const sonuc = reader.result;
+      if (typeof sonuc === "string") resolve(sonuc);
+      else reject(new Error("Okuma başarısız"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Okuma başarısız"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Sohbet önizlemesi: imzalı URL, olmazsa oturumlu indirme */
+export async function sohbetEkGoruntulemeUrl(path: string): Promise<string | null> {
+  const temiz = path?.trim();
+  if (!temiz) return null;
+
+  const imza = await sohbetEkImzaliUrl(temiz);
+  if (imza) return imza;
+
+  const { data, error } = await supabase.storage.from(SOHBET_EK_BUCKET).download(temiz);
+  if (error || !data) {
+    if (__DEV__) console.warn("[sohbet-ek] indirme:", error?.message);
+    return null;
+  }
+
+  if (Platform.OS === "web") {
+    return URL.createObjectURL(data);
+  }
+
+  try {
+    return await blobDataUri(data);
+  } catch (e) {
+    if (__DEV__) console.warn("[sohbet-ek] data uri:", e);
+    return null;
+  }
+}
+
 /** Web’de dosya indirme / açma */
 export function sohbetEkAc(url: string): void {
   if (Platform.OS === "web") {

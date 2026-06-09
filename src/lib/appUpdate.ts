@@ -30,7 +30,11 @@ const VARSAYILAN_CONFIG_URL =
   process.env.EXPO_PUBLIC_UPDATE_CONFIG_URL ?? "https://vrdy.vercel.app/app-version.json";
 
 export function mevcutSurum(): string {
-  return Constants.expoConfig?.version ?? "1.0.0";
+  const cfg = Constants.expoConfig?.version?.trim();
+  if (cfg) return cfg;
+  const manifest = (Constants as { manifest?: { version?: string } }).manifest?.version?.trim();
+  if (manifest) return manifest;
+  return "1.0.0";
 }
 
 /** "1.0.10" > "1.0.2" doğru karşılaştırma */
@@ -94,9 +98,13 @@ export async function webSayfasiniYenile(): Promise<void> {
   window.location.reload();
 }
 
-export function androidApkIndirUrl(config?: Pick<AppVersionConfig, "androidApkUrl">): string {
+export function androidApkIndirUrl(
+  config?: Pick<AppVersionConfig, "androidApkUrl" | "easArtifactUrl">,
+): string {
+  const eas = config?.easArtifactUrl?.trim();
+  if (eas?.includes("expo.dev/artifacts")) return eas;
   const url = config?.androidApkUrl?.trim();
-  if (url && !url.includes("expo.dev/artifacts")) return url;
+  if (url) return url;
   return ANDROID_APK_VARSAYILAN_URL;
 }
 

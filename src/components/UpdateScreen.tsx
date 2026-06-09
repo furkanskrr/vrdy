@@ -19,7 +19,9 @@ type Props = {
   indiriliyor?: boolean;
   indirmeYuzdesi?: number;
   indirmeHatasi?: string | null;
+  kurulumSonrasi?: boolean;
   onGuncelle: () => void;
+  onTekrarKontrol?: () => void;
 };
 
 function createStyles(colors: ThemeColors) {
@@ -140,7 +142,9 @@ export function UpdateScreen({
   indiriliyor = false,
   indirmeYuzdesi = 0,
   indirmeHatasi = null,
+  kurulumSonrasi = false,
   onGuncelle,
+  onTekrarKontrol,
 }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -162,7 +166,11 @@ export function UpdateScreen({
         </Text>
         <Text style={styles.notBaslik}>Bu sürümde</Text>
         <Text style={styles.notlar}>{notlar}</Text>
-        <Text style={styles.talimat}>{platformTalimati()}</Text>
+        <Text style={styles.talimat}>
+          {kurulumSonrasi
+            ? "Kurulum ekranında Yükle'ye bastıysanız: uygulamayı son uygulamalardan tamamen kapatın, ardından simgeden yeniden açın. Sürüm hâlâ eskiyse aşağıdaki Tekrar kontrol et'e basın."
+            : platformTalimati()}
+        </Text>
         {indiriliyor ? (
           <View style={styles.progressWrap}>
             <View style={styles.progressTrack}>
@@ -177,6 +185,22 @@ export function UpdateScreen({
           </View>
         ) : null}
         {indirmeHatasi ? <Text style={styles.hata}>{indirmeHatasi}</Text> : null}
+        {kurulumSonrasi && onTekrarKontrol ? (
+          <Pressable
+            style={styles.birincil}
+            onPress={onTekrarKontrol}
+            disabled={butonDevreDisi}
+          >
+            {yukleniyor ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="refresh-outline" size={20} color="#fff" />
+                <Text style={styles.birincilText}>Tekrar kontrol et</Text>
+              </>
+            )}
+          </Pressable>
+        ) : null}
         <Pressable
           style={styles.birincil}
           onPress={onGuncelle}
@@ -188,7 +212,7 @@ export function UpdateScreen({
             <>
               <Ionicons name="download-outline" size={20} color="#fff" />
               <Text style={styles.birincilText}>
-                {indirmeHatasi ? "Tekrar dene" : "Güncelle"}
+                {indirmeHatasi ? "Tekrar indir" : kurulumSonrasi ? "Yeniden indir" : "Güncelle"}
               </Text>
             </>
           )}

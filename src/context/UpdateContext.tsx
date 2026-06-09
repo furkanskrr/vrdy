@@ -4,8 +4,10 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, Platform } from "react-native";
 import {
   androidApkAc,
@@ -26,9 +28,34 @@ type UpdateContextValue = {
   indirmeHatasi: string | null;
   yenidenKontrol: () => Promise<GuncellemeDurumu>;
   guncellemeyiUygula: () => Promise<void>;
+  kurulumSonrasi: boolean;
 };
 
+const KURULUM_ANAHTAR = "@vardiyam/son_apk_kurulum";
 const UpdateContext = createContext<UpdateContextValue | null>(null);
+
+async function kurulumKaydet(hedefSurum: string): Promise<void> {
+  await AsyncStorage.setItem(
+    KURULUM_ANAHTAR,
+    JSON.stringify({ hedefSurum, zaman: Date.now() }),
+  );
+}
+
+async function kurulumOku(): Promise<{ hedefSurum: string; zaman: number } | null> {
+  try {
+    const ham = await AsyncStorage.getItem(KURULUM_ANAHTAR);
+    if (!ham) return null;
+    const o = JSON.parse(ham) as { hedefSurum?: string; zaman?: number };
+    if (!o.hedefSurum || !o.zaman) return null;
+    return { hedefSurum: o.hedefSurum, zaman: o.zaman };
+  } catch {
+    return null;
+  }
+}
+
+async function kurulumTemizle(): Promise<void> {
+  await AsyncStorage.removeItem(KURULUM_ANAHTAR);
+}
 
 async function expoOtaKontrolVeUygula(): Promise<boolean> {
   if (Platform.OS === "web") return false;
@@ -52,6 +79,8 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const [apkIndiriliyor, setApkIndiriliyor] = useState(false);
   const [indirmeYuzdesi, setIndirmeYuzdesi] = useState(0);
   const [indirmeHatasi, setIndirmeHatasi] = useState<string | null>(null);
+  const [kurulumSonrasi, setKurulumSonrasi] = useState(false);
+  const sonKontrolSurum = useRef<string | null>(null);
 
   const yenidenKontrol = useCallback(async (): Promise<GuncellemeDurumu> => {
     setKontrolEdiliyor(true);
@@ -59,10 +88,31 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       if (Platform.OS !== "web") {
         setOtaUygulaniyor(true);
         const otaYapildi = await expoOtaKontrolVeUygula();
-        if (otaYapildi) return { tur: "guncel" };
+        if (otaYapildi) {
+          await kurulumTemizle();
+          setKurulumSonrasi(false);
+          setDurum({ tur: "guncel" });
+          return { tur: "guncel" };
+        }
         setOtaUygulaniyor(false);
       }
       const yeni = await guncellemeKontrolEt();
+      if (yeni.tur === "guncel") {
+        await kurulumTemizle();
+        setKurulumSonrasi(false);
+      } else if (Platform.OS === "android") {
+        const kayit = await kurulumOku();
+        const ayniSurum = sonKontrolSurum.current === yeni.mevcutSurum;
+        sonKontrolSurum.current = yeni.mevcutSurum;
+        if (
+          kayit &&
+          kayit.hedefSurum === yeni.hedefSurum &&
+          Date.now() - kayit.zaman < 15 * 60 * 1000 &&
+          ayniSurum
+        ) {
+          setKurulumSonrasi(true);
+        }
+      }
       setDurum(yeni);
       return yeni;
     } finally {
@@ -88,6 +138,8 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
         await androidApkIndirVeKur(androidApkIndirUrl(config), (ilerleme) => {
           setIndirmeYuzdesi(ilerleme.yuzde);
         });
+        await kurulumKaydet(durum.hedefSurum);
+        setKurulumSonrasi(true);
       } catch (e) {
         const mesaj =
           e instanceof ApkIndirmeHatasi
@@ -141,6 +193,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       indirmeHatasi,
       yenidenKontrol,
       guncellemeyiUygula,
+      kurulumSonrasi,
     }),
     [
       durum,
@@ -151,6 +204,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       indirmeHatasi,
       yenidenKontrol,
       guncellemeyiUygula,
+      kurulumSonrasi,
     ],
   );
 
@@ -166,7 +220,9 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
           indiriliyor={apkIndiriliyor}
           indirmeYuzdesi={indirmeYuzdesi}
           indirmeHatasi={indirmeHatasi}
+          kurulumSonrasi={kurulumSonrasi}
           onGuncelle={() => void guncellemeyiUygula()}
+          onTekrarKontrol={() => void yenidenKontrol()}
         />
       ) : null}
     </UpdateContext.Provider>

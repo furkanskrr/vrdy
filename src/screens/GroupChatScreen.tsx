@@ -37,7 +37,12 @@ import {
 import { grupMesajiSil } from "../lib/groupChatDelete";
 import { grupMesajiDuzenle } from "../lib/groupChatEdit";
 import { grupMesajiGonder } from "../lib/groupChatSend";
-import { sohbetEkiYukle, sohbetEkGoruntulemeUrl, type SohbetEkTaslak } from "../lib/groupChatMedia";
+import {
+  sohbetEkiYukle,
+  sohbetEkGoruntulemeUrl,
+  sohbetEkTaslakSerbestBirak,
+  type SohbetEkTaslak,
+} from "../lib/groupChatMedia";
 import {
   sohbetBekleyenMedyaAl,
   sohbetDosyaSec,
@@ -732,13 +737,6 @@ export function GroupChatScreen() {
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [taslak, setTaslak] = useState("");
   const [bekleyenEk, setBekleyenEk] = useState<SohbetEkTaslak | null>(null);
-  const [bekleyenEkYuklu, setBekleyenEkYuklu] = useState<{
-    path: string;
-    tur: "image" | "file";
-    ad: string;
-    mime: string;
-  } | null>(null);
-  const [ekYukleniyor, setEkYukleniyor] = useState(false);
   const [kisayollar, setKisayollar] = useState<SohbetKisayolu[]>([]);
   const [kisayolModal, setKisayolModal] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
@@ -1039,24 +1037,6 @@ export function GroupChatScreen() {
     setOkumaDestegi(true);
   }, [groupId]);
 
-  const bekleyenEkiSunucuyaYukle = useCallback(
-    async (ek: SohbetEkTaslak) => {
-      if (!groupId) return;
-      const { data: sess } = await supabase.auth.getSession();
-      const uid = sess.session?.user?.id;
-      if (!uid) throw new Error("Oturum bulunamadı. Yeniden giriş yapın.");
-      setEkYukleniyor(true);
-      setBekleyenEkYuklu(null);
-      try {
-        const y = await sohbetEkiYukle(groupId, uid, ek);
-        setBekleyenEkYuklu({ path: y.path, tur: y.tur, ad: y.ad, mime: y.mime });
-      } finally {
-        setEkYukleniyor(false);
-      }
-    },
-    [groupId]
-  );
-
   useFocusEffect(
     useCallback(() => {
       sohbetEkraniOdaktaAyarla(true);
@@ -1068,15 +1048,10 @@ export function GroupChatScreen() {
       void (async () => {
         const bekleyen = await sohbetBekleyenMedyaAl();
         if (!bekleyen) return;
-        setBekleyenEk(bekleyen);
-        try {
-          await bekleyenEkiSunucuyaYukle(bekleyen);
-        } catch (e) {
-          Alert.alert(
-            "Fotoğraf",
-            e instanceof Error ? e.message : "Seçilen fotoğraf yüklenemedi."
-          );
-        }
+        setBekleyenEk((onceki) => {
+          sohbetEkTaslakSerbestBirak(onceki);
+          return bekleyen;
+        });
       })();
 
       return () => {
@@ -1085,7 +1060,7 @@ export function GroupChatScreen() {
         gorulduOlarakIsaretle();
         void okunmamisYenile();
       };
-    }, [sohbetEkraniOdaktaAyarla, gorulduOlarakIsaretle, okunmamisYenile, bekleyenEkiSunucuyaYukle])
+    }, [sohbetEkraniOdaktaAyarla, gorulduOlarakIsaretle, okunmamisYenile])
   );
 
   useEffect(() => {
@@ -1446,25 +1421,33 @@ export function GroupChatScreen() {
 
   const sabitMesajIdleri = useMemo(() => new Set(sabitler.map((s) => s.messageId)), [sabitler]);
 
-  async function ekSecVeYukle(sec: () => Promise<SohbetEkTaslak | null>, baslik: string) {
+  function bekleyenEkiTemizle() {
+    setBekleyenEk((onceki) => {
+      sohbetEkTaslakSerbestBirak(onceki);
+      return null;
+    });
+  }
+
+  async function ekSec(sec: () => Promise<SohbetEkTaslak | null>, baslik: string) {
     try {
       const ek = await sec();
       if (!ek) return;
-      setBekleyenEk(ek);
-      await bekleyenEkiSunucuyaYukle(ek);
+      setBekleyenEk((onceki) => {
+        sohbetEkTaslakSerbestBirak(onceki);
+        return ek;
+      });
     } catch (e) {
-      setBekleyenEk(null);
-      setBekleyenEkYuklu(null);
-      Alert.alert(baslik, e instanceof Error ? e.message : "İşlem başarısız.");
+      bekleyenEkiTemizle();
+      Alert.alert(baslik, e instanceof Error ? e.message : "Seçim başarısız.");
     }
   }
 
   async function fotoSec() {
-    await ekSecVeYukle(sohbetFotoSec, "Fotoğraf");
+    await ekSec(sohbetFotoSec, "Fotoğraf");
   }
 
   async function dosyaSec() {
-    await ekSecVeYukle(sohbetDosyaSec, "Dosya");
+    await ekSec(sohbetDosyaSec, "Dosya");
   }
 
   async function gonder() {
@@ -1478,10 +1461,6 @@ export function GroupChatScreen() {
       return;
     }
     if (!groupId || !user || gonderiliyor) return;
-    if (bekleyenEk && ekYukleniyor) {
-      Alert.alert("Bekleyin", "Dosya hâlâ yükleniyor. Birkaç saniye sonra tekrar deneyin.");
-      return;
-    }
     if (body.length > MESAJ_UZUNLUK_MAX) {
       setHata(`En fazla ${MESAJ_UZUNLUK_MAX} karakter.`);
       return;
@@ -1544,8 +1523,7 @@ export function GroupChatScreen() {
           return;
         }
         setTaslak("");
-        setBekleyenEk(null);
-        setBekleyenEkYuklu(null);
+        bekleyenEkiTemizle();
         setYanitHedef(null);
         setBenimProfilId(uid);
         void playDelightFeedback("success", {
@@ -1560,14 +1538,7 @@ export function GroupChatScreen() {
       const ataKayit = body ? ataKayitParse(body) : null;
 
       let yukluEk: { type: "image" | "file"; path: string; name: string; mime: string } | undefined;
-      if (bekleyenEkYuklu) {
-        yukluEk = {
-          type: bekleyenEkYuklu.tur,
-          path: bekleyenEkYuklu.path,
-          name: bekleyenEkYuklu.ad,
-          mime: bekleyenEkYuklu.mime,
-        };
-      } else if (bekleyenEk) {
+      if (bekleyenEk) {
         try {
           const y = await sohbetEkiYukle(groupId, uid, bekleyenEk);
           yukluEk = { type: y.tur, path: y.path, name: y.ad, mime: y.mime };
@@ -1597,8 +1568,7 @@ export function GroupChatScreen() {
           return;
         }
         setTaslak("");
-        setBekleyenEk(null);
-        setBekleyenEkYuklu(null);
+        bekleyenEkiTemizle();
         setYanitHedef(null);
         setBenimProfilId(uid);
         void playDelightFeedback("success", {
@@ -1642,8 +1612,7 @@ export function GroupChatScreen() {
           return;
         }
         setTaslak("");
-        setBekleyenEk(null);
-        setBekleyenEkYuklu(null);
+        bekleyenEkiTemizle();
         setYanitHedef(null);
         setBenimProfilId(uid);
         void playDelightFeedback("success", {
@@ -1678,8 +1647,7 @@ export function GroupChatScreen() {
           return;
         }
         setTaslak("");
-        setBekleyenEk(null);
-        setBekleyenEkYuklu(null);
+        bekleyenEkiTemizle();
         setYanitHedef(null);
         setBenimProfilId(uid);
         void playDelightFeedback("success", {
@@ -1707,8 +1675,7 @@ export function GroupChatScreen() {
       }
 
       setTaslak("");
-      setBekleyenEk(null);
-      setBekleyenEkYuklu(null);
+      bekleyenEkiTemizle();
       setYanitHedef(null);
       setBenimProfilId(uid);
       void playDelightFeedback("success", {
@@ -1988,14 +1955,8 @@ export function GroupChatScreen() {
           <Text style={styles.ekOnizlemeAd} numberOfLines={1}>
             {bekleyenEk.ad}
           </Text>
-          {ekYukleniyor ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : null}
           <Pressable
-            onPress={() => {
-              setBekleyenEk(null);
-              setBekleyenEkYuklu(null);
-            }}
+            onPress={bekleyenEkiTemizle}
             hitSlop={8}
           >
             <Ionicons name="close-circle" size={22} color={colors.textMuted} />
@@ -2065,9 +2026,7 @@ export function GroupChatScreen() {
           ]}
           onPress={() => void gonder()}
           disabled={
-            (!taslak.trim() && !bekleyenEk && !duzenleHedef?.attachment_path) ||
-            gonderiliyor ||
-            ekYukleniyor
+            (!taslak.trim() && !bekleyenEk && !duzenleHedef?.attachment_path) || gonderiliyor
           }
           accessibilityRole="button"
           accessibilityLabel={duzenleHedef ? "Kaydet" : "Gönder"}
@@ -2273,7 +2232,7 @@ export function GroupChatScreen() {
         onDuzenle={() => {
           if (!eylemMesaji) return;
           setYanitHedef(null);
-          setBekleyenEk(null);
+          bekleyenEkiTemizle();
           setDuzenleHedef(eylemMesaji);
           setTaslak(eylemMesaji.body.trim());
           requestAnimationFrame(() => {

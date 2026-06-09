@@ -1,9 +1,17 @@
-import { Platform } from "react-native";
-import { readAsStringAsync, EncodingType } from "expo-file-system/legacy";
+import { AppState, Platform } from "react-native";
+import {
+  cacheDirectory,
+  copyAsync,
+  readAsStringAsync,
+  EncodingType,
+} from "expo-file-system/legacy";
 import { supabase } from "./supabase";
 
 export const SOHBET_EK_BUCKET = "group-chat";
 export const SOHBET_EK_MAX_BYTES = 10 * 1024 * 1024;
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export type SohbetEkTuru = "image" | "file";
 
@@ -13,7 +21,7 @@ export type SohbetEkTaslak = {
   ad: string;
   mime: string;
   boyut?: number;
-  /** Web: blob URL yerine doğrudan dosya (daha güvenilir yükleme) */
+  /** Web: blob URL yerine doğrudan dosya */
   webDosya?: Blob;
 };
 
@@ -34,46 +42,170 @@ function bekle(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function base64BlobYap(base64: string, mime: string): Blob {
+function uriNormalize(uri: string): string {
+  const u = uri.trim();
+  if (Platform.OS === "ios" && u.startsWith("/") && !u.startsWith("file://")) {
+    return `file://${u}`;
+  }
+  if (
+    Platform.OS === "android" &&
+    u.startsWith("/") &&
+    !u.startsWith("file://") &&
+    !u.startsWith("content://")
+  ) {
+    return `file://${u}`;
+  }
+  return u;
+}
+
+function mimeNormalize(mime: string, tur: SohbetEkTuru, ad: string): string {
+  const m = mime?.trim().toLowerCase();
+  if (m && m !== "application/octet-stream") return m;
+  const ext = (ad.split(".").pop() ?? "").toLowerCase();
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "gif") return "image/gif";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "txt") return "text/plain";
+  if (tur === "image" || ["jpg", "jpeg", "heic", "heif"].includes(ext)) return "image/jpeg";
+  return "application/octet-stream";
+}
+
+function base64Uint8Yap(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function bytesToBlob(bytes: Uint8Array, mime: string): Blob {
   return new Blob([bytes], { type: mime });
 }
 
-async function uriBlobAl(uri: string, mime: string, webDosya?: Blob): Promise<Blob> {
-  if (webDosya && webDosya.size > 0) return webDosya;
+/** Seçilen dosyayı önbelleğe kopyala — picker dönüşünde kararlı file:// yolu */
+export async function sohbetEkUriHazirla(uri: string, ad: string): Promise<string> {
+  const kaynak = uriNormalize(uri);
+  if (Platform.OS === "web" || !cacheDirectory) return kaynak;
+  if (kaynak.startsWith("file://") && kaynak.includes("/Cache/")) return kaynak;
+
+  const ext = (ad.split(".").pop() ?? "bin").slice(0, 8);
+  const hedef = `${cacheDirectory}sohbet-ek-${Date.now()}.${ext}`;
+  try {
+    await copyAsync({ from: kaynak, to: hedef });
+    return hedef;
+  } catch {
+    return kaynak;
+  }
+}
+
+async function agAktifBekle(): Promise<void> {
+  if (Platform.OS === "web" || AppState.currentState === "active") return;
+  await new Promise<void>((resolve) => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        sub.remove();
+        resolve();
+      }
+    });
+  });
+  await bekle(350);
+}
+
+async function uriBaytAl(uri: string, ad: string, webDosya?: Blob): Promise<Uint8Array> {
+  if (webDosya && webDosya.size > 0) {
+    const ab = await webDosya.arrayBuffer();
+    return new Uint8Array(ab);
+  }
 
   if (Platform.OS === "web") {
-    for (let deneme = 0; deneme < 3; deneme++) {
+    let sonHata = "Dosya okunamadı";
+    for (let deneme = 0; deneme < 4; deneme++) {
       try {
         const res = await fetch(uri);
-        if (res.ok) return res.blob();
-      } catch {
-        /* tekrar dene */
+        if (res.ok) {
+          const ab = await res.arrayBuffer();
+          return new Uint8Array(ab);
+        }
+        sonHata = `HTTP ${res.status}`;
+      } catch (e) {
+        sonHata = e instanceof Error ? e.message : sonHata;
       }
-      await bekle(120 * (deneme + 1));
+      await bekle(200 * (deneme + 1));
     }
-    throw new Error("Dosya okunamadı. Fotoğrafı tekrar seçin.");
+    throw new Error(`${sonHata}. Tekrar seçin.`);
   }
+
+  const hazir = await sohbetEkUriHazirla(uri, ad);
+  let sonHata = "Dosya okunamadı";
+
+  for (let deneme = 0; deneme < 4; deneme++) {
+    try {
+      const base64 = await readAsStringAsync(hazir, { encoding: EncodingType.Base64 });
+      if (base64?.length) return base64Uint8Yap(base64);
+    } catch (e) {
+      sonHata = e instanceof Error ? e.message : sonHata;
+    }
+    await bekle(250 * (deneme + 1));
+  }
+
+  throw new Error(`${sonHata}. Tekrar seçin.`);
+}
+
+async function oturumTazele(): Promise<string> {
+  const { data: refresh, error: refreshErr } = await supabase.auth.refreshSession();
+  if (!refreshErr && refresh.session?.access_token) return refresh.session.access_token;
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session?.access_token) {
+    throw new Error("Oturum bulunamadı. Çıkış yapıp tekrar giriş yapın.");
+  }
+  return data.session.access_token;
+}
+
+async function storageSdkYukle(
+  path: string,
+  govde: Blob | Uint8Array,
+  mime: string
+): Promise<string | null> {
+  const yukleGovde =
+    typeof Blob !== "undefined" && govde instanceof Uint8Array ? bytesToBlob(govde, mime) : govde;
+
+  const { error } = await supabase.storage.from(SOHBET_EK_BUCKET).upload(path, yukleGovde, {
+    contentType: mime,
+    upsert: false,
+    cacheControl: "3600",
+  });
+  return error?.message ?? null;
+}
+
+async function storageRestYukle(path: string, govde: Blob, mime: string, token: string): Promise<string | null> {
+  if (!SUPABASE_URL.startsWith("http") || !SUPABASE_ANON) {
+    return "Sunucu yapılandırması eksik";
+  }
+
+  const encoded = path.split("/").map((p) => encodeURIComponent(p)).join("/");
+  const url = `${SUPABASE_URL}/storage/v1/object/${SOHBET_EK_BUCKET}/${encoded}`;
 
   try {
-    const base64 = await readAsStringAsync(uri, { encoding: EncodingType.Base64 });
-    if (base64) return base64BlobYap(base64, mime);
-  } catch {
-    /* fetch yedeği */
-  }
+    const form = new FormData();
+    form.append("cacheControl", "3600");
+    form.append("", govde);
 
-  for (let deneme = 0; deneme < 3; deneme++) {
-    try {
-      const res = await fetch(uri);
-      if (res.ok) return res.blob();
-    } catch {
-      /* tekrar dene */
-    }
-    await bekle(150 * (deneme + 1));
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON,
+        "x-upsert": "false",
+      },
+      body: form,
+    });
+    if (res.ok) return null;
+    const metin = await res.text().catch(() => "");
+    return metin || `HTTP ${res.status}`;
+  } catch (e) {
+    return e instanceof Error ? e.message : "Network request failed";
   }
-  throw new Error("Dosya okunamadı. Fotoğrafı tekrar seçin.");
 }
 
 export async function sohbetEkiYukle(
@@ -84,25 +216,58 @@ export async function sohbetEkiYukle(
   if (taslak.boyut && taslak.boyut > SOHBET_EK_MAX_BYTES) {
     throw new Error("Dosya en fazla 10 MB olabilir");
   }
+
+  await agAktifBekle();
+
   const ad = guvenliDosyaAdi(taslak.ad);
   const path = sohbetEkYolu(groupId, profileId, ad);
-  const mime = taslak.mime || (taslak.tur === "image" ? "image/jpeg" : "application/octet-stream");
-  const blob = await uriBlobAl(taslak.uri, mime, taslak.webDosya);
+  const mime = mimeNormalize(taslak.mime, taslak.tur, ad);
+
+  let blob: Blob;
+  if (taslak.webDosya && taslak.webDosya.size > 0) {
+    blob = taslak.webDosya;
+  } else {
+    const bytes = await uriBaytAl(taslak.uri, ad, taslak.webDosya);
+    if (bytes.byteLength > SOHBET_EK_MAX_BYTES) {
+      throw new Error("Dosya en fazla 10 MB olabilir");
+    }
+    if (bytes.byteLength === 0) {
+      throw new Error("Dosya boş veya okunamadı.");
+    }
+    blob = bytesToBlob(bytes, mime);
+  }
+
   if (blob.size > SOHBET_EK_MAX_BYTES) {
     throw new Error("Dosya en fazla 10 MB olabilir");
   }
+  if (blob.size === 0) {
+    throw new Error("Dosya boş veya okunamadı.");
+  }
 
   let sonHata = "Yükleme başarısız";
-  for (let deneme = 0; deneme < 3; deneme++) {
-    const { error } = await supabase.storage.from(SOHBET_EK_BUCKET).upload(path, blob, {
-      contentType: mime,
-      upsert: false,
-    });
-    if (!error) return { path, tur: taslak.tur, ad, mime: taslak.mime };
-    sonHata = error.message;
-    if (!/network|timeout|fetch|503|502/i.test(sonHata) || deneme >= 2) break;
-    await bekle(250 * (deneme + 1));
+  for (let deneme = 0; deneme < 4; deneme++) {
+    if (deneme > 0) await bekle(400 * deneme);
+
+    let token: string;
+    try {
+      token = await oturumTazele();
+    } catch (e) {
+      throw e instanceof Error ? e : new Error("Oturum hatası");
+    }
+
+    const sdkHata = await storageSdkYukle(path, blob, mime);
+    if (!sdkHata) return { path, tur: taslak.tur, ad, mime: taslak.mime };
+
+    const restHata = await storageRestYukle(path, blob, mime, token);
+    if (!restHata) return { path, tur: taslak.tur, ad, mime: taslak.mime };
+
+    sonHata = restHata || sdkHata;
+    const ag =
+      /network|failed|timeout|fetch|abort|503|502|504|econn/i.test(sonHata) ||
+      sonHata === "Network request failed";
+    if (!ag && deneme >= 1) break;
   }
+
   throw new Error(sonHata);
 }
 
@@ -131,7 +296,6 @@ function blobDataUri(blob: Blob): Promise<string> {
   });
 }
 
-/** Sohbet önizlemesi: imzalı URL, olmazsa oturumlu indirme (kısa gecikmede tekrar dener) */
 export async function sohbetEkGoruntulemeUrl(path: string): Promise<string | null> {
   const temiz = path?.trim();
   if (!temiz) return null;
@@ -160,7 +324,6 @@ export async function sohbetEkGoruntulemeUrl(path: string): Promise<string | nul
   return null;
 }
 
-/** Web’de dosya indirme / açma */
 export function sohbetEkAc(url: string): void {
   if (Platform.OS === "web") {
     window.open(url, "_blank", "noopener,noreferrer");
@@ -169,4 +332,14 @@ export function sohbetEkAc(url: string): void {
   import("expo-linking").then((Linking) => {
     void Linking.openURL(url);
   });
+}
+
+/** Web blob URL sızıntısını önle */
+export function sohbetEkTaslakSerbestBirak(taslak: SohbetEkTaslak | null): void {
+  if (Platform.OS !== "web" || !taslak?.uri.startsWith("blob:")) return;
+  try {
+    URL.revokeObjectURL(taslak.uri);
+  } catch {
+    /* yoksay */
+  }
 }

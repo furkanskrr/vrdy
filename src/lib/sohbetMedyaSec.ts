@@ -1,7 +1,7 @@
 import { Alert, Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import type { SohbetEkTaslak } from "./groupChatMedia";
+import { type SohbetEkTaslak } from "./groupChatMedia";
 
 type WebDosya = { uri: string; name: string; mime: string; size?: number; blob: Blob };
 
@@ -30,13 +30,8 @@ function webDosyaSec(accept: string): Promise<WebDosya | null> {
 
 function assetToTaslak(a: ImagePicker.ImagePickerAsset): SohbetEkTaslak {
   const mime = a.mimeType ?? "image/jpeg";
-  return {
-    uri: a.uri,
-    tur: "image",
-    ad: a.fileName ?? `foto-${Date.now()}.jpg`,
-    mime,
-    boyut: a.fileSize,
-  };
+  const ad = a.fileName ?? `foto-${Date.now()}.jpg`;
+  return { uri: a.uri, tur: "image", ad, mime, boyut: a.fileSize };
 }
 
 async function galeriAc(): Promise<SohbetEkTaslak | null> {
@@ -88,6 +83,16 @@ export async function sohbetBekleyenMedyaAl(): Promise<SohbetEkTaslak | null> {
   }
 }
 
+function dosyaTaslakHazir(uri: string, ad: string, mime: string, boyut?: number): SohbetEkTaslak {
+  return {
+    uri,
+    tur: mime.startsWith("image/") ? "image" : "file",
+    ad,
+    mime,
+    boyut,
+  };
+}
+
 export async function sohbetFotoSec(): Promise<SohbetEkTaslak | null> {
   if (Platform.OS === "web") {
     const f = await webDosyaSec("image/*");
@@ -130,11 +135,5 @@ export async function sohbetDosyaSec(): Promise<SohbetEkTaslak | null> {
   if (sonuc.canceled || !sonuc.assets?.[0]) return null;
   const a = sonuc.assets[0];
   const mime = a.mimeType ?? "application/octet-stream";
-  return {
-    uri: a.uri,
-    tur: mime.startsWith("image/") ? "image" : "file",
-    ad: a.name ?? "dosya",
-    mime,
-    boyut: a.size,
-  };
+  return dosyaTaslakHazir(a.uri, a.name ?? "dosya", mime, a.size);
 }

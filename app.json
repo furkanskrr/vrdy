@@ -3,7 +3,7 @@
     "name": "Vardiyam?",
     "slug": "vrdy",
     "scheme": "vrdy",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -62,7 +62,8 @@
           "photosPermission": "Grup sohbetine fotoğraf göndermek için galeri erişimi gerekir.",
           "cameraPermission": "Grup sohbetine fotoğraf çekip göndermek için kamera erişimi gerekir."
         }
-      ]
+      ],
+      "expo-document-picker"
     ],
     "runtimeVersion": {
       "policy": "appVersion"

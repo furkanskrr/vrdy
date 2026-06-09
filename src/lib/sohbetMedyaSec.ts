@@ -1,6 +1,6 @@
-import { Platform } from "react-native";
-import { PermissionStatus, requireNativeModule } from "expo-modules-core";
-import { cacheDirectory, copyAsync } from "expo-file-system/legacy";
+import { Alert, Platform } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import type { SohbetEkTaslak } from "./groupChatMedia";
 
 type WebDosya = { uri: string; name: string; mime: string; size?: number; blob: Blob };
@@ -28,70 +28,64 @@ function webDosyaSec(accept: string): Promise<WebDosya | null> {
   });
 }
 
-async function nativeGaleriSec(): Promise<SohbetEkTaslak | null> {
-  const picker = requireNativeModule<{
-    requestMediaLibraryPermissionsAsync: (writeOnly?: boolean) => Promise<{ granted?: boolean; status?: string }>;
-    launchImageLibraryAsync: (opts: Record<string, unknown>) => Promise<{
-      canceled?: boolean;
-      assets?: { uri: string; fileName?: string; mimeType?: string; fileSize?: number }[];
-    }>;
-  }>("ExponentImagePicker");
+function assetToTaslak(a: ImagePicker.ImagePickerAsset): SohbetEkTaslak {
+  const mime = a.mimeType ?? "image/jpeg";
+  return {
+    uri: a.uri,
+    tur: "image",
+    ad: a.fileName ?? `foto-${Date.now()}.jpg`,
+    mime,
+    boyut: a.fileSize,
+  };
+}
 
-  const perm = await picker.requestMediaLibraryPermissionsAsync(false);
-  if (!perm?.granted && perm?.status !== PermissionStatus.GRANTED) {
+async function galeriAc(): Promise<SohbetEkTaslak | null> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync(false);
+  if (!perm.granted) {
     throw new Error("Galeri izni gerekli. Telefon ayarlarından izin verin.");
   }
-
-  const sonuc = await picker.launchImageLibraryAsync({
+  const sonuc = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
     quality: 0.86,
     allowsEditing: false,
   });
   if (sonuc.canceled || !sonuc.assets?.[0]) return null;
-  const a = sonuc.assets[0];
-  let uri = a.uri;
-  if (cacheDirectory && (uri.startsWith("content://") || uri.startsWith("ph://"))) {
-    const hedef = `${cacheDirectory}sohbet-${Date.now()}.jpg`;
-    try {
-      await copyAsync({ from: uri, to: hedef });
-      uri = hedef;
-    } catch {
-      /* kaynak uri ile devam */
-    }
-  }
-  return {
-    uri,
-    tur: "image",
-    ad: a.fileName ?? "foto.jpg",
-    mime: a.mimeType ?? "image/jpeg",
-    boyut: a.fileSize,
-  };
+  return assetToTaslak(sonuc.assets[0]);
 }
 
-async function nativeDosyaSec(): Promise<SohbetEkTaslak | null> {
-  const { getDocumentAsync } = await import("expo-document-picker");
-  const sonuc = await getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-  if (sonuc.canceled || !sonuc.assets?.[0]) return null;
-  const a = sonuc.assets[0];
-  const mime = a.mimeType ?? "application/octet-stream";
-  let uri = a.uri;
-  if (cacheDirectory && uri.startsWith("content://")) {
-    const ext = (a.name?.split(".").pop() ?? "bin").slice(0, 8);
-    const hedef = `${cacheDirectory}sohbet-${Date.now()}.${ext}`;
-    try {
-      await copyAsync({ from: uri, to: hedef });
-      uri = hedef;
-    } catch {
-      /* kaynak uri ile devam */
-    }
+async function kameraAc(): Promise<SohbetEkTaslak | null> {
+  const perm = await ImagePicker.requestCameraPermissionsAsync();
+  if (!perm.granted) {
+    throw new Error("Kamera izni gerekli. Telefon ayarlarından izin verin.");
   }
-  return {
-    uri,
-    tur: mime.startsWith("image/") ? "image" : "file",
-    ad: a.name ?? "dosya",
-    mime,
-    boyut: a.size,
-  };
+  const sonuc = await ImagePicker.launchCameraAsync({
+    quality: 0.86,
+    allowsEditing: false,
+  });
+  if (sonuc.canceled || !sonuc.assets?.[0]) return null;
+  return assetToTaslak(sonuc.assets[0]);
+}
+
+function fotoKaynakSec(): Promise<"galeri" | "kamera" | null> {
+  return new Promise((resolve) => {
+    Alert.alert("Fotoğraf", "Kaynak seçin", [
+      { text: "Galeri", onPress: () => resolve("galeri") },
+      { text: "Kamera", onPress: () => resolve("kamera") },
+      { text: "İptal", style: "cancel", onPress: () => resolve(null) },
+    ]);
+  });
+}
+
+/** Android: ImagePicker sonrası Activity yeniden başlarsa seçimi kurtarır */
+export async function sohbetBekleyenMedyaAl(): Promise<SohbetEkTaslak | null> {
+  if (Platform.OS !== "android") return null;
+  try {
+    const sonuc = await ImagePicker.getPendingResultAsync();
+    if (!sonuc || sonuc.canceled || !sonuc.assets?.[0]) return null;
+    return assetToTaslak(sonuc.assets[0]);
+  } catch {
+    return null;
+  }
 }
 
 export async function sohbetFotoSec(): Promise<SohbetEkTaslak | null> {
@@ -107,7 +101,11 @@ export async function sohbetFotoSec(): Promise<SohbetEkTaslak | null> {
       webDosya: f.blob,
     };
   }
-  return nativeGaleriSec();
+
+  const kaynak = await fotoKaynakSec();
+  if (!kaynak) return null;
+  if (kaynak === "kamera") return kameraAc();
+  return galeriAc();
 }
 
 export async function sohbetDosyaSec(): Promise<SohbetEkTaslak | null> {
@@ -123,5 +121,20 @@ export async function sohbetDosyaSec(): Promise<SohbetEkTaslak | null> {
       webDosya: f.blob,
     };
   }
-  return nativeDosyaSec();
+
+  const sonuc = await DocumentPicker.getDocumentAsync({
+    copyToCacheDirectory: true,
+    multiple: false,
+    type: ["image/*", "application/pdf", "text/*", "*/*"],
+  });
+  if (sonuc.canceled || !sonuc.assets?.[0]) return null;
+  const a = sonuc.assets[0];
+  const mime = a.mimeType ?? "application/octet-stream";
+  return {
+    uri: a.uri,
+    tur: mime.startsWith("image/") ? "image" : "file",
+    ad: a.name ?? "dosya",
+    mime,
+    boyut: a.size,
+  };
 }

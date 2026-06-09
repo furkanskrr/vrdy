@@ -1,7 +1,7 @@
 {
-  "version": "1.0.1",
-  "minVersion": "1.0.0",
-  "releaseNotes": "Güncelleme artık zorunlu. Vardiya paylaşımı kompakt simge butonu ve daha yüksek görüntü kalitesi.",
+  "version": "1.0.2",
+  "minVersion": "1.0.1",
+  "releaseNotes": "Sohbet: galeri/kamera ve dosya seçimi düzeltildi, fotoğraf anında yüklenir, sohbet en alta kayar.",
   "androidApkUrl": "https://vrdy.vercel.app/Vardiyam.apk",
   "easArtifactUrl": "https://expo.dev/artifacts/eas/pc1i7AinfiH4YM9UsALeqh.apk",
   "webUrl": "https://vrdy.vercel.app",

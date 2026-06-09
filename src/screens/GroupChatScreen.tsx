@@ -23,9 +23,12 @@ import { GroupChatAttachmentBubble } from "../components/GroupChatAttachmentBubb
 import { KritikOnayModal, MesajEylemAltSayfa } from "../components/GroupChatOverlays";
 import {
   ataKayitParse,
+  atamaListeKomutuParse,
   eslesenKisayolBul,
   kisayolKaydet,
+  kisayolListeMetniOlustur,
   kisayolSil,
+  kisayolTetikYanitMetni,
   kisayollariYukle,
   type SohbetKisayolu,
 } from "../lib/chatShortcuts";
@@ -1318,6 +1321,36 @@ export function GroupChatScreen() {
         }
       }
 
+      const listeKomut = atamaListeKomutuParse(body);
+      if (listeKomut) {
+        const guncel = await kisayollariYukle(groupId);
+        setKisayollar(guncel);
+        const listeMetin = kisayolListeMetniOlustur(guncel, listeKomut);
+        const listeSonuc = await grupMesajiGonder({
+          groupId,
+          uid,
+          senderAd,
+          body: listeMetin,
+          push: false,
+        });
+        if (!listeSonuc.ok) {
+          setHata(listeSonuc.mesaj);
+          Alert.alert("Liste gönderilemedi", listeSonuc.mesaj);
+          return;
+        }
+        setTaslak("");
+        setBekleyenEk(null);
+        setYanitHedef(null);
+        setBenimProfilId(uid);
+        void playDelightFeedback("success", {
+          hapticsEnabled: delight.uiHapticsEnabled,
+          soundsEnabled: delight.uiSoundsEnabled,
+        });
+        gorulduOlarakIsaretle();
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+        return;
+      }
+
       if (ataKayit) {
         const kayit = await kisayolKaydet(groupId, uid, {
           tetikleyici: ataKayit.tetikleyici,
@@ -1368,7 +1401,7 @@ export function GroupChatScreen() {
           groupId,
           uid,
           senderAd,
-          body: kisayol.response_body?.trim() || " ",
+          body: kisayolTetikYanitMetni(kisayol),
           replyToId: yanitHedef?.id,
           attachment: kisayol.response_attachment_path
             ? {
@@ -1686,7 +1719,7 @@ export function GroupChatScreen() {
         <TextInput
           ref={composerInputRef}
           style={styles.input}
-          placeholder="Mesaj yazın… (/ata furkan metin)"
+          placeholder="Mesaj yazın…"
           placeholderTextColor={colors.textMuted}
           value={taslak}
           onChangeText={setTaslak}

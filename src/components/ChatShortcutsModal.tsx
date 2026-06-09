@@ -35,8 +35,9 @@ export function ChatShortcutsModal({ visible, onKapat, kisayollar, onSil, colors
             </TouchableOpacity>
           </View>
           <Text style={[styles.aciklama, { color: colors.textMuted }]}>
-            Kayıt: /ata furkan şifrem:12345{"\n"}
-            Kullanım: sohbette yalnızca furkan veya /furkan yazın → kayıtlı yanıt otomatik gider.
+            Kayıt: /ata erik 4{"\n"}
+            Liste: /atama (isimler) · /atamalar (isim → değer){"\n"}
+            Kullanım: erik veya /erik yazın → erik → 4
           </Text>
           <ScrollView style={styles.liste} keyboardShouldPersistTaps="handled">
             {kisayollar.length === 0 ? (
@@ -47,6 +48,7 @@ export function ChatShortcutsModal({ visible, onKapat, kisayollar, onSil, colors
                   <View style={styles.satirSol}>
                     <Text style={[styles.tetik, { color: colors.primary }]}>{k.trigger_key}</Text>
                     <Text style={[styles.yanit, { color: colors.text }]} numberOfLines={2}>
+                      →{" "}
                       {k.response_body?.trim()
                         ? k.response_body
                         : k.response_attachment_type === "image"

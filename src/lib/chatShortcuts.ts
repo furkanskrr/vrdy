@@ -35,11 +35,50 @@ export function ataKayitParse(metin: string): { tetikleyici: string; yanitMetin:
   return { tetikleyici, yanitMetin };
 }
 
+const ATAMA_KOMUTLARI = new Set(["/atama", "/atamalar"]);
+
+/** `/atama` veya `/atamalar` — sohbette liste gösterir */
+export function atamaListeKomutuParse(metin: string): "atama" | "atamalar" | null {
+  const t = metin.trim().toLowerCase();
+  if (t === "/atamalar") return "atamalar";
+  if (t === "/atama") return "atama";
+  return null;
+}
+
+function kisayolDegerOzeti(k: SohbetKisayolu): string {
+  const metin = k.response_body?.trim();
+  if (metin) return metin;
+  if (k.response_attachment_type === "image") return "📷 Fotoğraf";
+  if (k.response_attachment_path) return "📎 Dosya";
+  return "—";
+}
+
+/** Tetiklenince sohbette: erik → 4 */
+export function kisayolTetikYanitMetni(k: SohbetKisayolu): string {
+  return `${k.trigger_key} → ${kisayolDegerOzeti(k)}`;
+}
+
+/** /atama: yalnızca isimler; /atamalar: isim → değer listesi */
+export function kisayolListeMetniOlustur(
+  liste: SohbetKisayolu[],
+  tip: "atama" | "atamalar"
+): string {
+  if (liste.length === 0) {
+    return "📋 Henüz atama yok.\nEklemek için: /ata erik 4 veya /ata isim + fotoğraf";
+  }
+  if (tip === "atama") {
+    const isimler = liste.map((k) => k.trigger_key).join(", ");
+    return `📋 Atanan isimler (${liste.length}): ${isimler}`;
+  }
+  const satirlar = liste.map((k) => `• ${k.trigger_key} → ${kisayolDegerOzeti(k)}`);
+  return `📋 Atamalar (${liste.length})\n${satirlar.join("\n")}`;
+}
+
 /** Spam önleme: yalnızca tam eşleşme veya `/tetikleyici` */
 export function mesajTetiklerMi(mesaj: string, tetikleyici: string): boolean {
   const m = mesaj.trim().toLowerCase();
   const key = tetikleyiciNormalize(tetikleyici);
-  if (!key || m.startsWith("/ata")) return false;
+  if (!key || m.startsWith("/ata") || ATAMA_KOMUTLARI.has(m)) return false;
   return m === key || m === `/${key}`;
 }
 

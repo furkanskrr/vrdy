@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -32,6 +32,7 @@ export function GroupChatAttachmentBubble({ mesaj, mine, colors }: Props) {
   const [hata, setHata] = useState(false);
   const [buyut, setBuyut] = useState(false);
   const [onizlemeHata, setOnizlemeHata] = useState(false);
+  const otomatikDeneme = useRef(0);
 
   const urlYukle = useCallback(async () => {
     if (!mesaj.attachment_path) return;
@@ -45,9 +46,17 @@ export function GroupChatAttachmentBubble({ mesaj, mine, colors }: Props) {
   }, [mesaj.attachment_path]);
 
   useEffect(() => {
+    otomatikDeneme.current = 0;
     if (!mesaj.attachment_path || mesaj.attachment_url) return;
     void urlYukle();
   }, [mesaj.attachment_path, mesaj.attachment_url, urlYukle]);
+
+  useEffect(() => {
+    if ((!hata && !onizlemeHata) || otomatikDeneme.current >= 2) return;
+    otomatikDeneme.current += 1;
+    const t = setTimeout(() => void urlYukle(), 700);
+    return () => clearTimeout(t);
+  }, [hata, onizlemeHata, urlYukle]);
 
   if (!mesaj.attachment_path && !mesaj.attachment_type) return null;
 

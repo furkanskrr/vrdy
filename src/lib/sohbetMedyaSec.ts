@@ -1,8 +1,9 @@
 import { Platform } from "react-native";
 import { PermissionStatus, requireNativeModule } from "expo-modules-core";
+import { cacheDirectory, copyAsync } from "expo-file-system/legacy";
 import type { SohbetEkTaslak } from "./groupChatMedia";
 
-type WebDosya = { uri: string; name: string; mime: string; size?: number };
+type WebDosya = { uri: string; name: string; mime: string; size?: number; blob: Blob };
 
 function webDosyaSec(accept: string): Promise<WebDosya | null> {
   return new Promise((resolve) => {
@@ -20,6 +21,7 @@ function webDosyaSec(accept: string): Promise<WebDosya | null> {
         name: file.name,
         mime: file.type || "application/octet-stream",
         size: file.size,
+        blob: file,
       });
     };
     input.click();
@@ -47,8 +49,18 @@ async function nativeGaleriSec(): Promise<SohbetEkTaslak | null> {
   });
   if (sonuc.canceled || !sonuc.assets?.[0]) return null;
   const a = sonuc.assets[0];
+  let uri = a.uri;
+  if (cacheDirectory && (uri.startsWith("content://") || uri.startsWith("ph://"))) {
+    const hedef = `${cacheDirectory}sohbet-${Date.now()}.jpg`;
+    try {
+      await copyAsync({ from: uri, to: hedef });
+      uri = hedef;
+    } catch {
+      /* kaynak uri ile devam */
+    }
+  }
   return {
-    uri: a.uri,
+    uri,
     tur: "image",
     ad: a.fileName ?? "foto.jpg",
     mime: a.mimeType ?? "image/jpeg",
@@ -62,8 +74,19 @@ async function nativeDosyaSec(): Promise<SohbetEkTaslak | null> {
   if (sonuc.canceled || !sonuc.assets?.[0]) return null;
   const a = sonuc.assets[0];
   const mime = a.mimeType ?? "application/octet-stream";
+  let uri = a.uri;
+  if (cacheDirectory && uri.startsWith("content://")) {
+    const ext = (a.name?.split(".").pop() ?? "bin").slice(0, 8);
+    const hedef = `${cacheDirectory}sohbet-${Date.now()}.${ext}`;
+    try {
+      await copyAsync({ from: uri, to: hedef });
+      uri = hedef;
+    } catch {
+      /* kaynak uri ile devam */
+    }
+  }
   return {
-    uri: a.uri,
+    uri,
     tur: mime.startsWith("image/") ? "image" : "file",
     ad: a.name ?? "dosya",
     mime,
@@ -75,7 +98,14 @@ export async function sohbetFotoSec(): Promise<SohbetEkTaslak | null> {
   if (Platform.OS === "web") {
     const f = await webDosyaSec("image/*");
     if (!f) return null;
-    return { uri: f.uri, tur: "image", ad: f.name, mime: f.mime, boyut: f.size };
+    return {
+      uri: f.uri,
+      tur: "image",
+      ad: f.name,
+      mime: f.mime,
+      boyut: f.size,
+      webDosya: f.blob,
+    };
   }
   return nativeGaleriSec();
 }
@@ -90,6 +120,7 @@ export async function sohbetDosyaSec(): Promise<SohbetEkTaslak | null> {
       ad: f.name,
       mime: f.mime,
       boyut: f.size,
+      webDosya: f.blob,
     };
   }
   return nativeDosyaSec();

@@ -23,11 +23,13 @@ import { GroupChatAttachmentBubble } from "../components/GroupChatAttachmentBubb
 import { KritikOnayModal, MesajEylemAltSayfa } from "../components/GroupChatOverlays";
 import {
   ataKayitParse,
+  ataSilParse,
   atamaListeKomutuParse,
   eslesenKisayolBul,
   kisayolKaydet,
   kisayolListeMetniOlustur,
   kisayolSil,
+  kisayolSilTetikleyici,
   kisayolTetikYanitMetni,
   kisayollariYukle,
   type SohbetKisayolu,
@@ -35,7 +37,7 @@ import {
 import { grupMesajiSil } from "../lib/groupChatDelete";
 import { grupMesajiDuzenle } from "../lib/groupChatEdit";
 import { grupMesajiGonder } from "../lib/groupChatSend";
-import { sohbetEkiYukle, type SohbetEkTaslak } from "../lib/groupChatMedia";
+import { sohbetEkiYukle, sohbetEkGoruntulemeUrl, type SohbetEkTaslak } from "../lib/groupChatMedia";
 import { sohbetDosyaSec, sohbetFotoSec } from "../lib/sohbetMedyaSec";
 import { useDelight } from "../context/DelightContext";
 import { useTheme } from "../context/ThemeContext";
@@ -1116,6 +1118,14 @@ export function GroupChatScreen() {
             }
             return next;
           });
+          if (row.attachment_path) {
+            void sohbetEkGoruntulemeUrl(row.attachment_path).then((url) => {
+              if (!url) return;
+              setMesajlar((p) =>
+                p.map((m) => (m.id === row.id ? { ...m, attachment_url: url } : m))
+              );
+            });
+          }
         }
       )
       .on(
@@ -1441,6 +1451,40 @@ export function GroupChatScreen() {
       }
 
       const senderAd = user.ad?.trim() || user.email?.split("@")[0] || "Üye";
+      const ataSil = body ? ataSilParse(body) : null;
+      if (ataSil) {
+        const silSonuc = await kisayolSilTetikleyici(groupId, ataSil);
+        if (!silSonuc.ok) {
+          setHata(silSonuc.mesaj);
+          Alert.alert("Atama silinemedi", silSonuc.mesaj);
+          return;
+        }
+        await kisayollariTazele();
+        const bilgi = await grupMesajiGonder({
+          groupId,
+          uid,
+          senderAd,
+          body: `✓ Atama silindi: ${silSonuc.silinen}`,
+          push: false,
+        });
+        if (!bilgi.ok) {
+          setHata(bilgi.mesaj);
+          Alert.alert("Bilgi mesajı gönderilemedi", bilgi.mesaj);
+          return;
+        }
+        setTaslak("");
+        setBekleyenEk(null);
+        setYanitHedef(null);
+        setBenimProfilId(uid);
+        void playDelightFeedback("success", {
+          hapticsEnabled: delight.uiHapticsEnabled,
+          soundsEnabled: delight.uiSoundsEnabled,
+        });
+        gorulduOlarakIsaretle();
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+        return;
+      }
+
       const ataKayit = body ? ataKayitParse(body) : null;
 
       let yukluEk: { type: "image" | "file"; path: string; name: string; mime: string } | undefined;

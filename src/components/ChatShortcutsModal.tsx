@@ -36,6 +36,7 @@ export function ChatShortcutsModal({ visible, onKapat, kisayollar, onSil, colors
           </View>
           <Text style={[styles.aciklama, { color: colors.textMuted }]}>
             Kayıt: /ata erik 4{"\n"}
+            Sil: /atasil erik{"\n"}
             Liste: /atama (isimler) · /atamalar (isim → değer){"\n"}
             Kullanım: erik veya /erik yazın → erik → 4
           </Text>

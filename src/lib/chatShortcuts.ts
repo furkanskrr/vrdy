@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { SohbetEkTuru } from "./groupChatMedia";
+import { SOHBET_EK_BUCKET, type SohbetEkTuru } from "./groupChatMedia";
 
 export type SohbetKisayolu = {
   id: string;
@@ -35,7 +35,18 @@ export function ataKayitParse(metin: string): { tetikleyici: string; yanitMetin:
   return { tetikleyici, yanitMetin };
 }
 
-const ATAMA_KOMUTLARI = new Set(["/atama", "/atamalar"]);
+const ATAMA_KOMUTLARI = new Set(["/atama", "/atamalar", "/atasil"]);
+
+/** `/atasil erik` — kayıtlı atamayı siler */
+export function ataSilParse(metin: string): string | null {
+  const t = metin.trim();
+  if (!/^\/atasil(\s|$)/i.test(t)) return null;
+  const rest = t.replace(/^\/atasil\s*/i, "").trim();
+  if (!rest) return null;
+  const ilk = rest.split(/\s+/)[0];
+  const key = tetikleyiciNormalize(ilk);
+  return key || null;
+}
 
 /** `/atama` veya `/atamalar` — sohbette liste gösterir */
 export function atamaListeKomutuParse(metin: string): "atama" | "atamalar" | null {
@@ -64,7 +75,7 @@ export function kisayolListeMetniOlustur(
   tip: "atama" | "atamalar"
 ): string {
   if (liste.length === 0) {
-    return "📋 Henüz atama yok.\nEklemek için: /ata erik 4 veya /ata isim + fotoğraf";
+    return "📋 Henüz atama yok.\nEklemek için: /ata erik 4\nSilmek için: /atasil erik";
   }
   if (tip === "atama") {
     const isimler = liste.map((k) => k.trigger_key).join(", ");
@@ -78,7 +89,7 @@ export function kisayolListeMetniOlustur(
 export function mesajTetiklerMi(mesaj: string, tetikleyici: string): boolean {
   const m = mesaj.trim().toLowerCase();
   const key = tetikleyiciNormalize(tetikleyici);
-  if (!key || m.startsWith("/ata") || ATAMA_KOMUTLARI.has(m)) return false;
+  if (!key || m.startsWith("/ata") || ATAMA_KOMUTLARI.has(m) || /^\/atasil(\s|$)/i.test(m)) return false;
   return m === key || m === `/${key}`;
 }
 
@@ -144,6 +155,38 @@ export async function kisayolKaydet(
 export async function kisayolSil(shortcutId: string): Promise<boolean> {
   const { error } = await supabase.from("group_chat_shortcuts").delete().eq("id", shortcutId);
   return !error;
+}
+
+export async function kisayolSilTetikleyici(
+  groupId: string,
+  tetikleyici: string
+): Promise<{ ok: true; silinen: string } | { ok: false; mesaj: string }> {
+  const key = tetikleyiciNormalize(tetikleyici);
+  if (!key) return { ok: false, mesaj: "Silinecek isim belirtin. Örnek: /atasil erik" };
+
+  const { data: kayit, error: bulHata } = await supabase
+    .from("group_chat_shortcuts")
+    .select("id, response_attachment_path")
+    .eq("group_id", groupId)
+    .eq("trigger_key", key)
+    .maybeSingle();
+
+  if (bulHata) return { ok: false, mesaj: bulHata.message };
+  if (!kayit) return { ok: false, mesaj: `«${key}» için kayıtlı atama bulunamadı.` };
+
+  const ekYolu = (kayit as { response_attachment_path?: string | null }).response_attachment_path;
+  if (ekYolu?.trim()) {
+    await supabase.storage.from(SOHBET_EK_BUCKET).remove([ekYolu.trim()]);
+  }
+
+  const { error } = await supabase
+    .from("group_chat_shortcuts")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("trigger_key", key);
+
+  if (error) return { ok: false, mesaj: error.message };
+  return { ok: true, silinen: key };
 }
 
 export function eslesenKisayolBul(mesaj: string, liste: SohbetKisayolu[]): SohbetKisayolu | null {

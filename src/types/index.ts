@@ -21,6 +21,8 @@ export type GrupMesajiYanitOzet = {
   created_at: string;
 };
 
+export type SohbetEkTuru = "image" | "file";
+
 /** Grup sohbeti satırı (Supabase group_messages) */
 export type GrupMesaji = {
   id: string;
@@ -30,6 +32,12 @@ export type GrupMesaji = {
   body: string;
   created_at: string;
   reply_to_id?: string | null;
+  attachment_type?: SohbetEkTuru | null;
+  attachment_path?: string | null;
+  attachment_name?: string | null;
+  attachment_mime?: string | null;
+  /** İstemci: imzalı okuma URL’si */
+  attachment_url?: string | null;
   /** Sunucudan `reply_parent` embed veya mesajlar listesinden doldurulur */
   reply_parent?: GrupMesajiYanitOzet | null;
 };

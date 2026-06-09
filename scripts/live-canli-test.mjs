@@ -35,6 +35,7 @@ const TABLOLAR = [
   { ad: "group_members", sql: "schema.sql" },
   { ad: "shift_overrides", sql: "schema.sql" },
   { ad: "group_messages", sql: "group_messages.sql" },
+  { ad: "group_chat_shortcuts", sql: "group_chat_media_shortcuts.sql" },
   { ad: "group_chat_reads", sql: "group_chat_reads.sql" },
   { ad: "group_pinned_messages", sql: "group_pinned_messages.sql" },
   { ad: "group_cleaning_completions", sql: "group_cleaning.sql" },
@@ -44,8 +45,8 @@ const TABLOLAR = [
 
 const RPCLER = [
   { ad: "remove_group_member", sql: "remove_group_member_rpc.sql" },
-  { ad: "get_group_push_tokens", sql: "fix_push_tokens_rpc.sql" },
-  { ad: "get_push_tokens_for_profiles", sql: "schema.sql / notifications" },
+  { ad: "get_group_push_tokens", sql: "push_rpc_canli.sql" },
+  { ad: "get_push_tokens_for_profiles", sql: "push_rpc_canli.sql" },
   { ad: "current_profile_group_id", sql: "schema.sql" },
 ];
 

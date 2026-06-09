@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vrdy.app"
+      "bundleIdentifier": "com.vrdy.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Grup sohbetine fotoğraf göndermek için galeri erişimi gerekir.",
+        "NSCameraUsageDescription": "Grup sohbetine fotoğraf çekip göndermek için kamera erişimi gerekir."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +31,9 @@
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -48,6 +54,13 @@
         {
           "color": "#3B82F6",
           "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Grup sohbetine fotoğraf göndermek için galeri erişimi gerekir.",
+          "cameraPermission": "Grup sohbetine fotoğraf çekip göndermek için kamera erişimi gerekir."
         }
       ]
     ],

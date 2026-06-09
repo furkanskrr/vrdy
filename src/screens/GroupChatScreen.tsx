@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,7 +18,20 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ThemeColors } from "../constants/theme";
 import { RolRozeti } from "../components/RolRozeti";
+import { ChatShortcutsModal } from "../components/ChatShortcutsModal";
+import { GroupChatAttachmentBubble } from "../components/GroupChatAttachmentBubble";
 import { KritikOnayModal, MesajEylemAltSayfa } from "../components/GroupChatOverlays";
+import {
+  ataKayitParse,
+  eslesenKisayolBul,
+  kisayolKaydet,
+  kisayolSil,
+  kisayollariYukle,
+  type SohbetKisayolu,
+} from "../lib/chatShortcuts";
+import { grupMesajiGonder } from "../lib/groupChatSend";
+import { sohbetEkiYukle, type SohbetEkTaslak } from "../lib/groupChatMedia";
+import { sohbetDosyaSec, sohbetFotoSec } from "../lib/sohbetMedyaSec";
 import { useDelight } from "../context/DelightContext";
 import { useTheme } from "../context/ThemeContext";
 import { playDelightFeedback } from "../lib/delight/feedback";
@@ -393,6 +407,30 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       opacity: 0.35,
       backgroundColor: colors.border,
     },
+    composerAksiyonlar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginRight: 4,
+    },
+    ekBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    ekOnizleme: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    ekOnizlemeGorsel: { width: 48, height: 48, borderRadius: 8 },
+    ekOnizlemeAd: { flex: 1, fontSize: 12, color: colors.textMuted },
     sayacSatir: {
       flexDirection: "row",
       alignItems: "center",
@@ -642,6 +680,9 @@ export function GroupChatScreen() {
   const [yenileniyor, setYenileniyor] = useState(false);
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [taslak, setTaslak] = useState("");
+  const [bekleyenEk, setBekleyenEk] = useState<SohbetEkTaslak | null>(null);
+  const [kisayollar, setKisayollar] = useState<SohbetKisayolu[]>([]);
+  const [kisayolModal, setKisayolModal] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
   const [okumaDestegi, setOkumaDestegi] = useState(true);
   const [yanitHedef, setYanitHedef] = useState<GrupMesaji | null>(null);
@@ -783,7 +824,9 @@ export function GroupChatScreen() {
 
     const msgRes = await supabase
       .from("group_messages")
-      .select("id, group_id, profile_id, sender_ad, body, created_at, reply_to_id")
+      .select(
+        "id, group_id, profile_id, sender_ad, body, created_at, reply_to_id, attachment_type, attachment_path, attachment_name, attachment_mime"
+      )
       .eq("group_id", groupId)
       .order("created_at", { ascending: false })
       .limit(SAYFA_LIMIT);
@@ -836,6 +879,19 @@ export function GroupChatScreen() {
     if (benimId) setBenimProfilId(benimId);
     void uyelerVeOkumalariYukle(groupId, benimId);
   }, [groupId, uidHook, uyelerVeOkumalariYukle, sabitleriYukle]);
+
+  const kisayollariTazele = useCallback(async () => {
+    if (!groupId) {
+      setKisayollar([]);
+      return;
+    }
+    const liste = await kisayollariYukle(groupId);
+    setKisayollar(liste);
+  }, [groupId]);
+
+  useEffect(() => {
+    void kisayollariTazele();
+  }, [kisayollariTazele]);
 
   const okumalariSunucudanCek = useCallback(async (gid: string) => {
     const readRes = await supabase.from("group_chat_reads").select("profile_id, last_read_at").eq("group_id", gid);
@@ -1209,9 +1265,27 @@ export function GroupChatScreen() {
     return () => cancelAnimationFrame(t);
   }, [listData.length, mesajlar.length, yukleniyor]);
 
+  async function fotoSec() {
+    try {
+      const ek = await sohbetFotoSec();
+      if (ek) setBekleyenEk(ek);
+    } catch (e) {
+      Alert.alert("Fotoğraf", e instanceof Error ? e.message : "Galeri açılamadı.");
+    }
+  }
+
+  async function dosyaSec() {
+    try {
+      const ek = await sohbetDosyaSec();
+      if (ek) setBekleyenEk(ek);
+    } catch (e) {
+      Alert.alert("Dosya", e instanceof Error ? e.message : "Dosya seçilemedi.");
+    }
+  }
+
   async function gonder() {
     const body = taslak.trim();
-    if (!body || !groupId || !user || gonderiliyor) return;
+    if ((!body && !bekleyenEk) || !groupId || !user || gonderiliyor) return;
     if (body.length > MESAJ_UZUNLUK_MAX) {
       setHata(`En fazla ${MESAJ_UZUNLUK_MAX} karakter.`);
       return;
@@ -1228,37 +1302,118 @@ export function GroupChatScreen() {
         return;
       }
 
-      const insertPayload: Record<string, unknown> = {
-        group_id: groupId,
-        profile_id: uid,
-        sender_ad: user.ad?.trim() || user.email?.split("@")[0] || "Üye",
-        body,
-      };
-      if (yanitHedef?.id) insertPayload.reply_to_id = yanitHedef.id;
+      const senderAd = user.ad?.trim() || user.email?.split("@")[0] || "Üye";
+      const ataKayit = body ? ataKayitParse(body) : null;
 
-      let { error } = await supabase.from("group_messages").insert(insertPayload);
-      if (error && (error.message ?? "").includes("reply_to_id")) {
-        const { error: e2 } = await supabase.from("group_messages").insert({
-          group_id: groupId,
-          profile_id: uid,
-          sender_ad: user.ad?.trim() || user.email?.split("@")[0] || "Üye",
-          body,
-        });
-        error = e2;
-        if (!e2) {
-          Alert.alert(
-            "Yanıt bağlanamadı",
-            "Sunucuda reply_to_id sütunu yok; mesaj düz metin olarak gönderildi. group_chat_pin_reply.sql çalıştırın."
-          );
+      let yukluEk: { type: "image" | "file"; path: string; name: string; mime: string } | undefined;
+      if (bekleyenEk) {
+        try {
+          const y = await sohbetEkiYukle(groupId, uid, bekleyenEk);
+          yukluEk = { type: y.tur, path: y.path, name: y.ad, mime: y.mime };
+        } catch (e) {
+          const mesaj = e instanceof Error ? e.message : "Dosya yüklenemedi";
+          setHata(mesaj);
+          Alert.alert("Yükleme başarısız", mesaj);
+          return;
         }
       }
-      if (error) {
-        if (__DEV__) console.warn("[sohbet] gönder:", error.message);
-        setHata(error.message);
-        Alert.alert("Mesaj gönderilemedi", error.message);
+
+      if (ataKayit) {
+        const kayit = await kisayolKaydet(groupId, uid, {
+          tetikleyici: ataKayit.tetikleyici,
+          yanitMetin: ataKayit.yanitMetin,
+          ek: yukluEk
+            ? { tur: yukluEk.type, path: yukluEk.path, ad: yukluEk.name, mime: yukluEk.mime }
+            : undefined,
+        });
+        if (!kayit.ok) {
+          setHata(kayit.mesaj);
+          Alert.alert("Kısayol kaydedilemedi", kayit.mesaj);
+          return;
+        }
+        await kisayollariTazele();
+        const ozet = ataKayit.yanitMetin
+          ? `${ataKayit.tetikleyici} → ${ataKayit.yanitMetin}`
+          : yukluEk
+            ? `${ataKayit.tetikleyici} → ${yukluEk.type === "image" ? "fotoğraf" : "dosya"}`
+            : ataKayit.tetikleyici;
+        const onay = await grupMesajiGonder({
+          groupId,
+          uid,
+          senderAd,
+          body: `✓ Kısayol kaydedildi: ${ozet}`,
+          push: false,
+        });
+        if (!onay.ok) {
+          setHata(onay.mesaj);
+          Alert.alert("Bilgi mesajı gönderilemedi", onay.mesaj);
+          return;
+        }
+        setTaslak("");
+        setBekleyenEk(null);
+        setYanitHedef(null);
+        setBenimProfilId(uid);
+        void playDelightFeedback("success", {
+          hapticsEnabled: delight.uiHapticsEnabled,
+          soundsEnabled: delight.uiSoundsEnabled,
+        });
+        gorulduOlarakIsaretle();
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
         return;
       }
+
+      const kisayol = body ? eslesenKisayolBul(body, kisayollar) : null;
+      if (kisayol) {
+        const yanit = await grupMesajiGonder({
+          groupId,
+          uid,
+          senderAd,
+          body: kisayol.response_body?.trim() || " ",
+          replyToId: yanitHedef?.id,
+          attachment: kisayol.response_attachment_path
+            ? {
+                type: (kisayol.response_attachment_type ?? "file") as "image" | "file",
+                path: kisayol.response_attachment_path,
+                name: kisayol.response_attachment_name ?? "dosya",
+                mime: kisayol.response_attachment_mime ?? "application/octet-stream",
+              }
+            : undefined,
+        });
+        if (!yanit.ok) {
+          setHata(yanit.mesaj);
+          Alert.alert("Kısayol gönderilemedi", yanit.mesaj);
+          return;
+        }
+        setTaslak("");
+        setBekleyenEk(null);
+        setYanitHedef(null);
+        setBenimProfilId(uid);
+        void playDelightFeedback("success", {
+          hapticsEnabled: delight.uiHapticsEnabled,
+          soundsEnabled: delight.uiSoundsEnabled,
+        });
+        gorulduOlarakIsaretle();
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+        return;
+      }
+
+      const sonuc = await grupMesajiGonder({
+        groupId,
+        uid,
+        senderAd,
+        body: body || " ",
+        replyToId: yanitHedef?.id,
+        attachment: yukluEk,
+      });
+      if (!sonuc.ok) {
+        if (__DEV__) console.warn("[sohbet] gönder:", sonuc.mesaj);
+        setHata(sonuc.mesaj);
+        Alert.alert("Mesaj gönderilemedi", sonuc.mesaj);
+        return;
+      }
+
       setTaslak("");
+      setBekleyenEk(null);
       setYanitHedef(null);
       setBenimProfilId(uid);
       void playDelightFeedback("success", {
@@ -1395,8 +1550,13 @@ export function GroupChatScreen() {
                   </Text>
                 </View>
               ) : null}
+              {m.attachment_path ? (
+                <GroupChatAttachmentBubble mesaj={m} mine={mine} colors={colors} />
+              ) : null}
               <View style={styles.bodySatir}>
-                <Text style={[styles.body, styles.bodyMetin, mine && styles.bodyMine]}>{m.body}</Text>
+                {m.body.trim() ? (
+                  <Text style={[styles.body, styles.bodyMetin, mine && styles.bodyMine]}>{m.body}</Text>
+                ) : null}
                 <Text style={[styles.zaman, mine ? styles.zamanMine : styles.zamanOther]}>
                   {saatKisa(m.created_at)}
                 </Text>
@@ -1489,11 +1649,44 @@ export function GroupChatScreen() {
           </Pressable>
         </View>
       ) : null}
+      {bekleyenEk ? (
+        <View style={styles.ekOnizleme}>
+          {bekleyenEk.tur === "image" ? (
+            <Image source={{ uri: bekleyenEk.uri }} style={styles.ekOnizlemeGorsel} />
+          ) : (
+            <Ionicons name="document-outline" size={28} color={colors.primary} />
+          )}
+          <Text style={styles.ekOnizlemeAd} numberOfLines={1}>
+            {bekleyenEk.ad}
+          </Text>
+          <Pressable onPress={() => setBekleyenEk(null)} hitSlop={8}>
+            <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+          </Pressable>
+        </View>
+      ) : null}
       <View style={styles.composerPill}>
+        <View style={styles.composerAksiyonlar}>
+          <Pressable
+            style={styles.ekBtn}
+            onPress={() => void fotoSec()}
+            disabled={gonderiliyor}
+            accessibilityLabel="Fotoğraf ekle"
+          >
+            <Ionicons name="image-outline" size={22} color={colors.primary} />
+          </Pressable>
+          <Pressable
+            style={styles.ekBtn}
+            onPress={() => void dosyaSec()}
+            disabled={gonderiliyor}
+            accessibilityLabel="Dosya ekle"
+          >
+            <Ionicons name="attach-outline" size={22} color={colors.primary} />
+          </Pressable>
+        </View>
         <TextInput
           ref={composerInputRef}
           style={styles.input}
-          placeholder="Mesaj yazın…"
+          placeholder="Mesaj yazın… (/ata furkan metin)"
           placeholderTextColor={colors.textMuted}
           value={taslak}
           onChangeText={setTaslak}
@@ -1516,11 +1709,11 @@ export function GroupChatScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.gonderBtn,
-            (!taslak.trim() || gonderiliyor) && styles.gonderBtnDisabled,
-            pressed && taslak.trim() && !gonderiliyor ? { opacity: 0.88 } : null,
+            ((!taslak.trim() && !bekleyenEk) || gonderiliyor) && styles.gonderBtnDisabled,
+            pressed && (taslak.trim() || bekleyenEk) && !gonderiliyor ? { opacity: 0.88 } : null,
           ]}
           onPress={() => void gonder()}
-          disabled={!taslak.trim() || gonderiliyor}
+          disabled={(!taslak.trim() && !bekleyenEk) || gonderiliyor}
           accessibilityRole="button"
           accessibilityLabel="Gönder"
         >
@@ -1564,6 +1757,14 @@ export function GroupChatScreen() {
               ) : null}
             </View>
             <View style={styles.ustAksiyonlar}>
+              <Pressable
+                style={styles.ustBtn}
+                onPress={() => setKisayolModal(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Kısayollar"
+              >
+                <Ionicons name="flash-outline" size={21} color={colors.primary} />
+              </Pressable>
               <Pressable
                 style={[styles.ustBtn, sohbetSessiz && styles.ustBtnAktif]}
                 onPress={() => void sohbetSessizAyarla(!sohbetSessiz)}
@@ -1700,6 +1901,18 @@ export function GroupChatScreen() {
           if (!eylemMesaji) return;
           const s = sabitler.find((x) => x.messageId === eylemMesaji.id);
           if (s) setOnay({ tur: "kaldir", pinId: s.pinId, mesajId: eylemMesaji.id });
+        }}
+      />
+
+      <ChatShortcutsModal
+        visible={kisayolModal}
+        onKapat={() => setKisayolModal(false)}
+        kisayollar={kisayollar}
+        colors={colors}
+        isDark={isDark}
+        onSil={async (id) => {
+          const ok = await kisayolSil(id);
+          if (ok) await kisayollariTazele();
         }}
       />
 

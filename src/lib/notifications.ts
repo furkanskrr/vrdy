@@ -213,21 +213,122 @@ export async function pushDurumOzetiOku(): Promise<PushDurumOzeti> {
 
 type ExpoPushTicket = { status: "ok"; id?: string } | { status: "error"; message?: string; details?: unknown };
 
-async function expoPushGonder(messages: { to: string; sound: "default"; title: string; body: string; channelId?: string }[]): Promise<void> {
-  if (messages.length === 0) return;
-  const res = await fetch("https://exp.host/--/api/v2/push/send", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(messages),
-  });
-  const json = (await res.json()) as { data?: ExpoPushTicket[]; errors?: unknown };
-  if (__DEV__ && json?.data) {
-    const hatalar = json.data.filter((t): t is Extract<ExpoPushTicket, { status: "error" }> => t.status === "error");
-    if (hatalar.length) console.warn("[push] expo yanit:", hatalar);
+type PushMesaj = {
+  to: string;
+  sound: "default";
+  title: string;
+  body: string;
+  /** Android alıcılar için zorunlu; gönderenin platformundan bağımsız her zaman verilmeli */
+  channelId: "default";
+};
+
+/** Ayarlar / teşhis: son push gönderim hatası (varsa) */
+let sonPushHata: string | null = null;
+
+export function sonPushHataOku(): string | null {
+  return sonPushHata;
+}
+
+async function expoPushGonder(messages: PushMesaj[]): Promise<boolean> {
+  if (messages.length === 0) return true;
+  try {
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(messages),
+    });
+    const json = (await res.json()) as { data?: ExpoPushTicket[]; errors?: unknown };
+    if (!res.ok) {
+      sonPushHata = `Expo API HTTP ${res.status}`;
+      if (__DEV__) console.warn("[push] expo http:", res.status, json);
+      return false;
+    }
+    const hatalar = (json?.data ?? []).filter(
+      (t): t is Extract<ExpoPushTicket, { status: "error" }> => t.status === "error"
+    );
+    if (hatalar.length) {
+      sonPushHata = hatalar.map((h) => h.message ?? "bilinmeyen").join("; ");
+      if (__DEV__) console.warn("[push] expo yanit:", hatalar);
+      return false;
+    }
+    sonPushHata = null;
+    return true;
+  } catch (e) {
+    sonPushHata = e instanceof Error ? e.message : "Ağ hatası";
+    if (__DEV__) console.warn("[push] expo fetch:", e);
+    return false;
   }
+}
+
+/** RPC yoksa veya hata verirse aynı gruptaki profillerden token okur (RLS) */
+async function grupPushTokenlariAl(
+  groupId: string,
+  profileIds?: string[]
+): Promise<string[]> {
+  let sorgu = supabase
+    .from("profiles")
+    .select("expo_push_token")
+    .eq("group_id", groupId)
+    .not("expo_push_token", "is", null);
+
+  if (profileIds?.length) {
+    sorgu = sorgu.in("id", profileIds);
+  }
+
+  const { data, error } = await sorgu;
+  if (error) {
+    if (__DEV__) console.warn("[push] profil token sorgusu:", error.message);
+    return [];
+  }
+  return (data ?? [])
+    .map((r) => (r.expo_push_token as string | null)?.trim())
+    .filter((t): t is string => !!t && t.startsWith("ExponentPushToken"));
+}
+
+async function pushTokenlariCoz(
+  groupId: string,
+  profileIds?: string[]
+): Promise<string[]> {
+  const rpcAdi = profileIds?.length ? "get_push_tokens_for_profiles" : "get_group_push_tokens";
+  const rpcArgs = profileIds?.length
+    ? { p_group_id: groupId, p_profile_ids: profileIds }
+    : { p_group_id: groupId };
+
+  const { data: tokens, error: rpcErr } = await supabase.rpc(rpcAdi, rpcArgs);
+
+  if (!rpcErr && tokens && Array.isArray(tokens) && tokens.length > 0) {
+    return (tokens as { token: string }[])
+      .map((t) => t.token?.trim())
+      .filter((t): t is string => !!t);
+  }
+
+  if (rpcErr && __DEV__) {
+    console.warn(`[push] RPC ${rpcAdi} yedek sorguya geciliyor:`, rpcErr.message);
+  }
+
+  return grupPushTokenlariAl(groupId, profileIds);
+}
+
+function pushMesajlariHazirla(
+  tokenlar: string[],
+  kendiToken: string | null,
+  title: string,
+  body: string
+): PushMesaj[] {
+  return tokenlar
+    .filter(Boolean)
+    .filter((t) => t !== kendiToken)
+    .map((to) => ({
+      to,
+      sound: "default" as const,
+      title,
+      body,
+      channelId: "default" as const,
+    }));
 }
 
 export async function sendPushToProfiles(
@@ -235,23 +336,14 @@ export async function sendPushToProfiles(
   profileIds: string[],
   title: string,
   body: string,
-): Promise<void> {
-  if (!isSupabaseConfigured) return;
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
   try {
     const ids = [...new Set(profileIds.filter(Boolean))];
-    if (ids.length === 0) return;
+    if (ids.length === 0) return false;
 
-    const { data: tokens, error: rpcErr } = await supabase.rpc("get_push_tokens_for_profiles", {
-      p_group_id: groupId,
-      p_profile_ids: ids,
-    });
-
-    if (rpcErr) {
-      if (__DEV__) console.warn("[push] RPC profiles:", rpcErr.message);
-      return;
-    }
-
-    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) return;
+    const tokenlar = await pushTokenlariCoz(groupId, ids);
+    if (tokenlar.length === 0) return false;
 
     const { data: { user } } = await supabase.auth.getUser();
     let kendiToken: string | null = null;
@@ -264,22 +356,11 @@ export async function sendPushToProfiles(
       kendiToken = prof?.expo_push_token ?? null;
     }
 
-    const rows = tokens as { token: string }[];
-    const messages = rows
-      .map((t) => t.token)
-      .filter(Boolean)
-      .filter((t) => t !== kendiToken)
-      .map((to) => ({
-        to,
-        sound: "default" as const,
-        title,
-        body,
-        channelId: Platform.OS === "android" ? "default" : undefined,
-      }));
-
-    await expoPushGonder(messages);
+    const messages = pushMesajlariHazirla(tokenlar, kendiToken, title, body);
+    return expoPushGonder(messages);
   } catch (e) {
     if (__DEV__) console.warn("[push] gonderim profiles:", e);
+    return false;
   }
 }
 
@@ -287,19 +368,11 @@ export async function sendPushToGroup(
   groupId: string,
   title: string,
   body: string,
-): Promise<void> {
-  if (!isSupabaseConfigured) return;
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
   try {
-    const { data: tokens, error: rpcErr } = await supabase.rpc("get_group_push_tokens", {
-      p_group_id: groupId,
-    });
-
-    if (rpcErr) {
-      if (__DEV__) console.warn("[push] RPC:", rpcErr.message);
-      return;
-    }
-
-    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) return;
+    const tokenlar = await pushTokenlariCoz(groupId);
+    if (tokenlar.length === 0) return false;
 
     const { data: { user } } = await supabase.auth.getUser();
     let kendiToken: string | null = null;
@@ -312,23 +385,34 @@ export async function sendPushToGroup(
       kendiToken = prof?.expo_push_token ?? null;
     }
 
-    const rows = tokens as { token: string }[];
-    const messages = rows
-      .map((t) => t.token)
-      .filter(Boolean)
-      .filter((t) => t !== kendiToken)
-      .map((to) => ({
-        to,
-        sound: "default" as const,
-        title,
-        body,
-        channelId: Platform.OS === "android" ? "default" : undefined,
-      }));
+    const messages = pushMesajlariHazirla(tokenlar, kendiToken, title, body);
+    if (messages.length === 0) return false;
 
-    if (messages.length === 0) return;
-
-    await expoPushGonder(messages);
+    return expoPushGonder(messages);
   } catch (e) {
     if (__DEV__) console.warn("[push] gonderim:", e);
+    return false;
   }
+}
+
+/** Ayarlar: kendi cihazına test bildirimi */
+export async function pushTestBildirimiGonder(): Promise<{ ok: boolean; mesaj: string }> {
+  const probe = await probePushSetup();
+  if (!probe.available) {
+    return { ok: false, mesaj: "Bu kurulumda push desteklenmiyor (emülatör / Expo Go / tarayıcı)." };
+  }
+  if (probe.status !== "granted" || !probe.token) {
+    return { ok: false, mesaj: "Önce bildirim iznini verin ve push anahtarının alındığından emin olun." };
+  }
+  const ok = await expoPushGonder([
+    {
+      to: probe.token,
+      sound: "default",
+      title: "Vardiyam?",
+      body: "Test bildirimi başarılı — ekip bildirimleri bu kanaldan gelir.",
+      channelId: "default",
+    },
+  ]);
+  if (ok) return { ok: true, mesaj: "Test bildirimi gönderildi. Birkaç saniye içinde görünmeli." };
+  return { ok: false, mesaj: sonPushHata ?? "Expo push servisi yanıt vermedi. FCM/APNs ayarlarını kontrol edin." };
 }

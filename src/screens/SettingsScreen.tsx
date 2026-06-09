@@ -35,6 +35,7 @@ import { useUpdate } from "../context/UpdateContext";
 import {
   probePushSetup,
   pushDurumOzetiOku,
+  pushTestBildirimiGonder,
   requestPushPermissionAndFetchToken,
   savePushToken,
   type PushDurumOzeti,
@@ -91,6 +92,7 @@ export function SettingsScreen() {
   const [sekme, setSekme] = useState<Sekme>("genel");
   const [pushDurum, setPushDurum] = useState<PushDurumOzeti | null>(null);
   const [pushAyarBusy, setPushAyarBusy] = useState(false);
+  const [pushTestBusy, setPushTestBusy] = useState(false);
 
   const [partnerModalUye, setPartnerModalUye] = useState<TeamMember | null>(null);
   const [partnerModalSecim, setPartnerModalSecim] = useState("");
@@ -266,6 +268,17 @@ export function SettingsScreen() {
       }
     } finally {
       setPushAyarBusy(false);
+    }
+  }
+
+  async function handlePushTest() {
+    setPushTestBusy(true);
+    try {
+      const sonuc = await pushTestBildirimiGonder();
+      Alert.alert(sonuc.ok ? "Test gönderildi" : "Test başarısız", sonuc.mesaj);
+      await yenilePushAyarSatiri();
+    } finally {
+      setPushTestBusy(false);
     }
   }
 
@@ -456,6 +469,26 @@ export function SettingsScreen() {
               ) : pushDurum.destekleniyor && !pushDurum.sunucudaKayitli ? (
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               ) : null}
+            </TouchableOpacity>
+          ) : null}
+
+          {pushDurum?.sunucudaKayitli ? (
+            <TouchableOpacity
+              style={[styles.row, styles.pushEnableRow]}
+              onPress={() => void handlePushTest()}
+              activeOpacity={0.7}
+              disabled={pushTestBusy}
+            >
+              <View style={[styles.rowLeft, styles.rowLeftTop]}>
+                <Ionicons name="paper-plane-outline" size={20} color={colors.primary} style={styles.pushEnableIkon} />
+                <View style={styles.rowTextCol}>
+                  <Text style={styles.rowLabel}>Test bildirimi gönder</Text>
+                  <Text style={styles.rowSub}>
+                    Bu cihaza örnek push gönderir. Görünmüyorsa telefon ayarlarından bildirimleri kontrol edin.
+                  </Text>
+                </View>
+              </View>
+              {pushTestBusy ? <ActivityIndicator color={colors.primary} /> : null}
             </TouchableOpacity>
           ) : null}
 

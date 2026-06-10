@@ -70,7 +70,9 @@ export async function grupMesajiGonder(
           : body
         : girdi.attachment?.type === "image"
           ? "📷 Fotoğraf"
-          : "📎 Dosya";
+          : girdi.attachment?.type === "audio"
+            ? "🎤 Ses mesajı"
+            : "📎 Dosya";
     void sendPushToGroup(girdi.groupId, baslik, govde);
   }
 

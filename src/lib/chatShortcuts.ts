@@ -60,6 +60,7 @@ function kisayolDegerOzeti(k: SohbetKisayolu): string {
   const metin = k.response_body?.trim();
   if (metin) return metin;
   if (k.response_attachment_type === "image") return "📷 Fotoğraf";
+  if (k.response_attachment_type === "audio") return "🎤 Ses mesajı";
   if (k.response_attachment_path) return "📎 Dosya";
   return "—";
 }

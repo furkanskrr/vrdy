@@ -12,6 +12,7 @@ import type { ThemeColors } from "../constants/theme";
 import { sohbetEkAc, sohbetEkGoruntulemeUrl } from "../lib/groupChatMedia";
 import type { GrupMesaji } from "../types";
 import { SohbetGorselBuyutModal } from "./SohbetGorselBuyutModal";
+import { SohbetSesOynatici } from "./SohbetSesUI";
 
 type Props = {
   mesaj: GrupMesaji;
@@ -19,7 +20,14 @@ type Props = {
   colors: ThemeColors;
 };
 
+function sesMi(mesaj: GrupMesaji): boolean {
+  if (mesaj.attachment_type === "audio") return true;
+  const mime = mesaj.attachment_mime ?? "";
+  return mime.startsWith("audio/");
+}
+
 function gorselMi(mesaj: GrupMesaji): boolean {
+  if (sesMi(mesaj)) return false;
   if (mesaj.attachment_type === "image") return true;
   const mime = mesaj.attachment_mime ?? "";
   const ad = mesaj.attachment_name ?? "";
@@ -68,6 +76,20 @@ export function GroupChatAttachmentBubble({ mesaj, mine, colors }: Props) {
         <ActivityIndicator size="small" color={mine ? "#fff" : colors.primary} />
       </View>
     );
+  }
+
+  if (sesMi(mesaj)) {
+    if (hata || !url) {
+      return (
+        <Pressable style={styles.hataKutu} onPress={() => void urlYukle()}>
+          <Ionicons name="mic-outline" size={22} color={mine ? "#fff" : colors.textMuted} />
+          <Text style={[styles.hataMetin, mine && styles.hataMetinMine]}>
+            Ses yüklenemedi · Tekrar dene
+          </Text>
+        </Pressable>
+      );
+    }
+    return <SohbetSesOynatici uri={url} mine={mine} colors={colors} />;
   }
 
   if (resim) {

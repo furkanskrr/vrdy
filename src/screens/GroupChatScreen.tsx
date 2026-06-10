@@ -50,6 +50,13 @@ import {
   sohbetFotoSec,
   sohbetFotoSecWeb,
 } from "../lib/sohbetMedyaSec";
+import {
+  SES_KAYIT_MAX_SN,
+  sesKaydiBaslat,
+  sesKaydiDurdur,
+  sesKaydiIptal,
+} from "../lib/sohbetSesKaydi";
+import { SohbetSesKayitBanti, SohbetSesOnizleme } from "../components/SohbetSesUI";
 import { useDelight } from "../context/DelightContext";
 import { useTheme } from "../context/ThemeContext";
 import { playDelightFeedback } from "../lib/delight/feedback";
@@ -470,6 +477,9 @@ function createStyles(colors: ThemeColors, isDark: boolean) {
       alignItems: "center",
       justifyContent: "center",
     },
+    sesBtnAktif: {
+      backgroundColor: colors.primaryMuted + "66",
+    },
     ekOnizleme: {
       flexDirection: "row",
       alignItems: "center",
@@ -622,6 +632,7 @@ function mesajOzeti(m: GrupMesaji, max = 120): string {
   const metin = m.body?.trim();
   if (metin) return alintiOzetKisalt(metin, max);
   if (m.attachment_type === "image") return "📷 Fotoğraf";
+  if (m.attachment_type === "audio") return "🎤 Ses mesajı";
   if (m.attachment_path) return `📎 ${m.attachment_name?.trim() || "Dosya"}`;
   return "";
 }
@@ -739,6 +750,9 @@ export function GroupChatScreen() {
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [taslak, setTaslak] = useState("");
   const [bekleyenEk, setBekleyenEk] = useState<SohbetEkTaslak | null>(null);
+  const [sesKayitAktif, setSesKayitAktif] = useState(false);
+  const [sesKayitSureSn, setSesKayitSureSn] = useState(0);
+  const sesKayitSureRef = useRef(0);
   const [kisayollar, setKisayollar] = useState<SohbetKisayolu[]>([]);
   const [kisayolModal, setKisayolModal] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
@@ -1430,6 +1444,64 @@ export function GroupChatScreen() {
     });
   }
 
+  const sesKaydiBitir = useCallback(async () => {
+    if (!sesKayitAktif) return;
+    const sure = sesKayitSureRef.current;
+    setSesKayitAktif(false);
+    setSesKayitSureSn(0);
+    sesKayitSureRef.current = 0;
+    try {
+      const ek = await sesKaydiDurdur(sure);
+      if (ek) {
+        setBekleyenEk((onceki) => {
+          sohbetEkTaslakSerbestBirak(onceki);
+          return ek;
+        });
+      }
+    } catch (e) {
+      Alert.alert("Ses kaydı", e instanceof Error ? e.message : "Kayıt başarısız.");
+    }
+  }, [sesKayitAktif]);
+
+  const sesKaydiIptalHandler = useCallback(() => {
+    setSesKayitAktif(false);
+    setSesKayitSureSn(0);
+    sesKayitSureRef.current = 0;
+    void sesKaydiIptal();
+  }, []);
+
+  const sesKaydiBaslatHandler = useCallback(() => {
+    if (duzenleHedef || gonderiliyor || bekleyenEk || sesKayitAktif) return;
+    void (async () => {
+      try {
+        await sesKaydiBaslat();
+        sesKayitSureRef.current = 0;
+        setSesKayitSureSn(0);
+        setSesKayitAktif(true);
+      } catch (e) {
+        Alert.alert("Ses kaydı", e instanceof Error ? e.message : "Kayıt başarısız.");
+      }
+    })();
+  }, [duzenleHedef, gonderiliyor, bekleyenEk, sesKayitAktif]);
+
+  useEffect(() => {
+    if (!sesKayitAktif) return;
+    const baslangic = Date.now();
+    const t = setInterval(() => {
+      const sn = Math.floor((Date.now() - baslangic) / 1000);
+      sesKayitSureRef.current = sn;
+      setSesKayitSureSn(sn);
+      if (sn >= SES_KAYIT_MAX_SN) void sesKaydiBitir();
+    }, 250);
+    return () => clearInterval(t);
+  }, [sesKayitAktif, sesKaydiBitir]);
+
+  useEffect(() => {
+    return () => {
+      void sesKaydiIptal();
+    };
+  }, []);
+
   function ekSecSonucuIsle(ek: SohbetEkTaslak | null) {
     if (!ek) return;
     setBekleyenEk((onceki) => {
@@ -1969,7 +2041,17 @@ export function GroupChatScreen() {
           </Pressable>
         </View>
       ) : null}
-      {bekleyenEk ? (
+      {sesKayitAktif ? (
+        <SohbetSesKayitBanti
+          sureSn={sesKayitSureSn}
+          colors={colors}
+          onDurdur={() => void sesKaydiBitir()}
+          onIptal={sesKaydiIptalHandler}
+        />
+      ) : null}
+      {bekleyenEk?.tur === "audio" ? (
+        <SohbetSesOnizleme ek={bekleyenEk} colors={colors} onKaldir={bekleyenEkiTemizle} />
+      ) : bekleyenEk ? (
         <View style={styles.ekOnizleme}>
           {bekleyenEk.tur === "image" ? (
             <Image source={{ uri: bekleyenEk.uri }} style={styles.ekOnizlemeGorsel} />
@@ -1979,10 +2061,7 @@ export function GroupChatScreen() {
           <Text style={styles.ekOnizlemeAd} numberOfLines={1}>
             {bekleyenEk.ad}
           </Text>
-          <Pressable
-            onPress={bekleyenEkiTemizle}
-            hitSlop={8}
-          >
+          <Pressable onPress={bekleyenEkiTemizle} hitSlop={8}>
             <Ionicons name="close-circle" size={22} color={colors.textMuted} />
           </Pressable>
         </View>
@@ -1992,25 +2071,39 @@ export function GroupChatScreen() {
           <Pressable
             style={styles.ekBtn}
             onPress={fotoSec}
-            disabled={gonderiliyor || !!duzenleHedef}
+            disabled={gonderiliyor || !!duzenleHedef || sesKayitAktif}
             accessibilityLabel="Fotoğraf ekle"
           >
             <Ionicons
               name="image-outline"
               size={22}
-              color={duzenleHedef ? colors.textMuted : colors.primary}
+              color={duzenleHedef || sesKayitAktif ? colors.textMuted : colors.primary}
             />
           </Pressable>
           <Pressable
             style={styles.ekBtn}
             onPress={dosyaSec}
-            disabled={gonderiliyor || !!duzenleHedef}
+            disabled={gonderiliyor || !!duzenleHedef || sesKayitAktif}
             accessibilityLabel="Dosya ekle"
           >
             <Ionicons
               name="attach-outline"
               size={22}
-              color={duzenleHedef ? colors.textMuted : colors.primary}
+              color={duzenleHedef || sesKayitAktif ? colors.textMuted : colors.primary}
+            />
+          </Pressable>
+          <Pressable
+            style={[styles.ekBtn, sesKayitAktif ? styles.sesBtnAktif : null]}
+            onPress={sesKaydiBaslatHandler}
+            disabled={gonderiliyor || !!duzenleHedef || !!bekleyenEk || sesKayitAktif}
+            accessibilityLabel="Ses kaydı"
+          >
+            <Ionicons
+              name="mic-outline"
+              size={22}
+              color={
+                duzenleHedef || bekleyenEk || sesKayitAktif ? colors.textMuted : colors.primary
+              }
             />
           </Pressable>
         </View>
@@ -2023,7 +2116,7 @@ export function GroupChatScreen() {
           onChangeText={setTaslak}
           multiline
           maxLength={MESAJ_UZUNLUK_MAX}
-          editable={!gonderiliyor && !!groupId}
+          editable={!gonderiliyor && !!groupId && !sesKayitAktif}
           textAlignVertical="center"
           underlineColorAndroid="transparent"
           onFocus={() => {

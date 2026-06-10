@@ -24,6 +24,7 @@ function mesajOzetMetni(m: GrupMesaji | null): string {
   const metin = m.body?.trim();
   if (metin) return metin;
   if (m.attachment_type === "image") return "📷 Fotoğraf";
+  if (m.attachment_type === "audio") return "🎤 Ses mesajı";
   if (m.attachment_path) return `📎 ${m.attachment_name?.trim() || "Dosya"}`;
   return "";
 }

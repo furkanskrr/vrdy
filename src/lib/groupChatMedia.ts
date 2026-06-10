@@ -13,7 +13,7 @@ export const SOHBET_EK_MAX_BYTES = 10 * 1024 * 1024;
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-export type SohbetEkTuru = "image" | "file";
+export type SohbetEkTuru = "image" | "file" | "audio";
 
 export type SohbetEkTaslak = {
   uri: string;
@@ -21,6 +21,8 @@ export type SohbetEkTaslak = {
   ad: string;
   mime: string;
   boyut?: number;
+  /** Ses önizleme süresi (saniye) */
+  sesSureSn?: number;
   /** Web: seçilen dosyanın kendisi (blob URL yerine) */
   webDosya?: Blob;
 };
@@ -69,6 +71,10 @@ function mimeNormalize(mime: string, tur: SohbetEkTuru, ad: string): string {
   if (ext === "gif") return "image/gif";
   if (ext === "pdf") return "application/pdf";
   if (ext === "txt") return "text/plain";
+  if (tur === "audio" || ["m4a", "mp4", "aac", "webm", "mp3"].includes(ext)) {
+    if (ext === "webm") return "audio/webm";
+    return "audio/mp4";
+  }
   if (tur === "image" || ["jpg", "jpeg", "heic", "heif"].includes(ext)) return "image/jpeg";
   return "application/octet-stream";
 }

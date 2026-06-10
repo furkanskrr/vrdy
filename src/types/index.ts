@@ -21,7 +21,7 @@ export type GrupMesajiYanitOzet = {
   created_at: string;
 };
 
-export type SohbetEkTuru = "image" | "file";
+export type SohbetEkTuru = "image" | "file" | "audio";
 
 /** Grup sohbeti satırı (Supabase group_messages) */
 export type GrupMesaji = {

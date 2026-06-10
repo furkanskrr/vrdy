@@ -196,24 +196,47 @@ async function storageNativeUriYukle(
   }
 }
 
-async function webDosyaOku(taslak: SohbetEkTaslak, ad: string): Promise<Blob> {
-  if (taslak.webDosya && taslak.webDosya.size > 0) return taslak.webDosya;
-
-  let sonHata = "Dosya okunamadı";
-  for (let deneme = 0; deneme < 4; deneme++) {
-    try {
-      const res = await fetch(taslak.uri);
-      if (res.ok) {
-        const blob = await res.blob();
-        if (blob.size > 0) return blob;
-      }
-      sonHata = `HTTP ${res.status}`;
-    } catch (e) {
-      sonHata = e instanceof Error ? e.message : sonHata;
-    }
-    await bekle(250 * (deneme + 1));
+async function webYuklemeGovdesi(taslak: SohbetEkTaslak): Promise<{ blob: Blob; buf: ArrayBuffer }> {
+  if (!taslak.webDosya || taslak.webDosya.size === 0) {
+    throw new Error("Dosya seçilemedi. Tekrar deneyin.");
   }
-  throw new Error(`${sonHata}. Tekrar seçin.`);
+  const blob = taslak.webDosya;
+  const buf = await blob.arrayBuffer();
+  if (buf.byteLength === 0) throw new Error("Dosya boş veya okunamadı.");
+  return { blob, buf };
+}
+
+async function storageWebRawYukle(
+  path: string,
+  buf: ArrayBuffer,
+  mime: string,
+  token: string
+): Promise<string | null> {
+  if (!SUPABASE_URL.startsWith("http") || !SUPABASE_ANON) {
+    return "Sunucu yapılandırması eksik";
+  }
+
+  const encoded = path.split("/").map((p) => encodeURIComponent(p)).join("/");
+  const url = `${SUPABASE_URL}/storage/v1/object/${SOHBET_EK_BUCKET}/${encoded}`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON,
+        "Content-Type": mime,
+        "x-upsert": "false",
+        "cache-control": "max-age=3600",
+      },
+      body: buf,
+    });
+    if (res.ok) return null;
+    const metin = await res.text().catch(() => "");
+    return metin || `HTTP ${res.status}`;
+  } catch (e) {
+    return e instanceof Error ? e.message : "Network request failed";
+  }
 }
 
 async function nativeEkiYukle(
@@ -260,19 +283,30 @@ async function nativeEkiYukle(
 }
 
 async function webEkiYukle(path: string, taslak: SohbetEkTaslak, ad: string, mime: string): Promise<void> {
-  const blob = await webDosyaOku(taslak, ad);
-  if (blob.size > SOHBET_EK_MAX_BYTES) throw new Error("Dosya en fazla 10 MB olabilir");
-  if (blob.size === 0) throw new Error("Dosya boş veya okunamadı.");
+  const { blob, buf } = await webYuklemeGovdesi(taslak);
+  if (buf.byteLength > SOHBET_EK_MAX_BYTES) throw new Error("Dosya en fazla 10 MB olabilir");
 
   let sonHata = "Yükleme başarısız";
   for (let deneme = 0; deneme < 4; deneme++) {
     if (deneme > 0) await bekle(400 * deneme);
-    await oturumTazele();
 
-    const sdkHata = await storageSdkYukle(path, blob, mime);
-    if (!sdkHata) return;
-    sonHata = sdkHata;
+    let token: string;
+    try {
+      token = await oturumTazele();
+    } catch (e) {
+      throw e instanceof Error ? e : new Error("Oturum hatası");
+    }
 
+    const sdkBlobHata = await storageSdkYukle(path, blob, mime);
+    if (!sdkBlobHata) return;
+
+    const sdkBufHata = await storageSdkYukle(path, buf, mime);
+    if (!sdkBufHata) return;
+
+    const restHata = await storageWebRawYukle(path, buf, mime, token);
+    if (!restHata) return;
+
+    sonHata = restHata || sdkBufHata || sdkBlobHata;
     const ag = /network|failed|timeout|fetch|abort|503|502|504/i.test(sonHata);
     if (!ag && deneme >= 1) break;
   }

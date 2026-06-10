@@ -46,7 +46,9 @@ import {
 import {
   sohbetBekleyenMedyaAl,
   sohbetDosyaSec,
+  sohbetDosyaSecWeb,
   sohbetFotoSec,
+  sohbetFotoSecWeb,
 } from "../lib/sohbetMedyaSec";
 import { useDelight } from "../context/DelightContext";
 import { useTheme } from "../context/ThemeContext";
@@ -1428,26 +1430,48 @@ export function GroupChatScreen() {
     });
   }
 
+  function ekSecSonucuIsle(ek: SohbetEkTaslak | null) {
+    if (!ek) return;
+    setBekleyenEk((onceki) => {
+      sohbetEkTaslakSerbestBirak(onceki);
+      return ek;
+    });
+  }
+
+  /** iOS Safari: dosya girdisi onPress ile aynı tick'te açılmalı */
+  function webEkSecBaslat(sec: () => Promise<SohbetEkTaslak | null>, baslik: string) {
+    const islem = sec();
+    void islem
+      .then(ekSecSonucuIsle)
+      .catch((e) => {
+        bekleyenEkiTemizle();
+        Alert.alert(baslik, e instanceof Error ? e.message : "Seçim başarısız.");
+      });
+  }
+
   async function ekSec(sec: () => Promise<SohbetEkTaslak | null>, baslik: string) {
     try {
-      const ek = await sec();
-      if (!ek) return;
-      setBekleyenEk((onceki) => {
-        sohbetEkTaslakSerbestBirak(onceki);
-        return ek;
-      });
+      ekSecSonucuIsle(await sec());
     } catch (e) {
       bekleyenEkiTemizle();
       Alert.alert(baslik, e instanceof Error ? e.message : "Seçim başarısız.");
     }
   }
 
-  async function fotoSec() {
-    await ekSec(sohbetFotoSec, "Fotoğraf");
+  function fotoSec() {
+    if (isWeb) {
+      webEkSecBaslat(sohbetFotoSecWeb, "Fotoğraf");
+      return;
+    }
+    void ekSec(sohbetFotoSec, "Fotoğraf");
   }
 
-  async function dosyaSec() {
-    await ekSec(sohbetDosyaSec, "Dosya");
+  function dosyaSec() {
+    if (isWeb) {
+      webEkSecBaslat(sohbetDosyaSecWeb, "Dosya");
+      return;
+    }
+    void ekSec(sohbetDosyaSec, "Dosya");
   }
 
   async function gonder() {
@@ -1967,7 +1991,7 @@ export function GroupChatScreen() {
         <View style={styles.composerAksiyonlar}>
           <Pressable
             style={styles.ekBtn}
-            onPress={() => void fotoSec()}
+            onPress={fotoSec}
             disabled={gonderiliyor || !!duzenleHedef}
             accessibilityLabel="Fotoğraf ekle"
           >
@@ -1979,7 +2003,7 @@ export function GroupChatScreen() {
           </Pressable>
           <Pressable
             style={styles.ekBtn}
-            onPress={() => void dosyaSec()}
+            onPress={dosyaSec}
             disabled={gonderiliyor || !!duzenleHedef}
             accessibilityLabel="Dosya ekle"
           >

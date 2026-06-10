@@ -2,36 +2,7 @@ import { Alert, Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { sohbetEkUriHazirla, type SohbetEkTaslak } from "./groupChatMedia";
-
-type WebDosya = { uri: string; name: string; mime: string; size?: number; blob: Blob };
-
-function webDosyaSec(accept: string): Promise<WebDosya | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = accept;
-    input.onchange = () => {
-      const file = input.files?.[0];
-      input.value = "";
-      if (!file) {
-        resolve(null);
-        return;
-      }
-      const blob =
-        typeof File !== "undefined"
-          ? new File([file], file.name, { type: file.type || "application/octet-stream" })
-          : file;
-      resolve({
-        uri: URL.createObjectURL(blob),
-        name: file.name,
-        mime: file.type || "application/octet-stream",
-        size: file.size,
-        blob,
-      });
-    };
-    input.click();
-  });
-}
+import { webDosyaSec } from "./webDosyaSecici";
 
 async function assetToTaslak(a: ImagePicker.ImagePickerAsset): Promise<SohbetEkTaslak> {
   const mime = a.mimeType ?? "image/jpeg";
@@ -111,18 +82,40 @@ async function dosyaTaslakHazir(
   };
 }
 
+function webSecimdenTaslak(
+  f: Awaited<ReturnType<typeof webDosyaSec>>,
+  tur: "image" | "file"
+): SohbetEkTaslak | null {
+  if (!f) return null;
+  return {
+    uri: f.uri,
+    tur,
+    ad: f.name,
+    mime: f.mime,
+    boyut: f.size,
+    webDosya: f.blob,
+  };
+}
+
+/**
+ * Web: Pressable onPress içinde doğrudan çağrılmalı (iOS kullanıcı hareketi zinciri).
+ * async değil — picker click aynı tick'te açılır.
+ */
+export function sohbetFotoSecWeb(): Promise<SohbetEkTaslak | null> {
+  return webDosyaSec("image/*").then((f) => webSecimdenTaslak(f, "image"));
+}
+
+/** Web: Pressable onPress içinde doğrudan çağrılmalı */
+export function sohbetDosyaSecWeb(): Promise<SohbetEkTaslak | null> {
+  return webDosyaSec("image/*,application/pdf,.doc,.docx,text/plain").then((f) => {
+    if (!f) return null;
+    return webSecimdenTaslak(f, f.mime.startsWith("image/") ? "image" : "file");
+  });
+}
+
 export async function sohbetFotoSec(): Promise<SohbetEkTaslak | null> {
   if (Platform.OS === "web") {
-    const f = await webDosyaSec("image/*");
-    if (!f) return null;
-    return {
-      uri: f.uri,
-      tur: "image",
-      ad: f.name,
-      mime: f.mime,
-      boyut: f.size,
-      webDosya: f.blob,
-    };
+    return sohbetFotoSecWeb();
   }
 
   const kaynak = await fotoKaynakSec();
@@ -133,16 +126,7 @@ export async function sohbetFotoSec(): Promise<SohbetEkTaslak | null> {
 
 export async function sohbetDosyaSec(): Promise<SohbetEkTaslak | null> {
   if (Platform.OS === "web") {
-    const f = await webDosyaSec("image/*,application/pdf,.doc,.docx,text/plain");
-    if (!f) return null;
-    return {
-      uri: f.uri,
-      tur: f.mime.startsWith("image/") ? "image" : "file",
-      ad: f.name,
-      mime: f.mime,
-      boyut: f.size,
-      webDosya: f.blob,
-    };
+    return sohbetDosyaSecWeb();
   }
 
   const sonuc = await DocumentPicker.getDocumentAsync({

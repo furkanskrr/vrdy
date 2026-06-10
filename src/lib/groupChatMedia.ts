@@ -21,11 +21,13 @@ export type SohbetEkTaslak = {
   ad: string;
   mime: string;
   boyut?: number;
-  /** Web: blob URL yerine doğrudan dosya */
+  /** Web: seçilen dosyanın kendisi (blob URL yerine) */
   webDosya?: Blob;
 };
 
 const IMZA_SURE_SN = 60 * 60 * 24 * 7;
+
+type RnFormDosya = { uri: string; name: string; type: string };
 
 function guvenliDosyaAdi(ad: string): string {
   const temiz = ad.replace(/[^\w.\-()+ ]/g, "_").trim() || "dosya";
@@ -71,15 +73,12 @@ function mimeNormalize(mime: string, tur: SohbetEkTuru, ad: string): string {
   return "application/octet-stream";
 }
 
-function base64Uint8Yap(base64: string): Uint8Array {
+function base64ArrayBufferYap(base64: string): ArrayBuffer {
   const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-function bytesToBlob(bytes: Uint8Array, mime: string): Blob {
-  return new Blob([bytes], { type: mime });
+  const buf = new ArrayBuffer(binary.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+  return buf;
 }
 
 /** Seçilen dosyayı önbelleğe kopyala — picker dönüşünde kararlı file:// yolu */
@@ -99,56 +98,18 @@ export async function sohbetEkUriHazirla(uri: string, ad: string): Promise<strin
 }
 
 async function agAktifBekle(): Promise<void> {
-  if (Platform.OS === "web" || AppState.currentState === "active") return;
-  await new Promise<void>((resolve) => {
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        sub.remove();
-        resolve();
-      }
-    });
-  });
-  await bekle(350);
-}
-
-async function uriBaytAl(uri: string, ad: string, webDosya?: Blob): Promise<Uint8Array> {
-  if (webDosya && webDosya.size > 0) {
-    const ab = await webDosya.arrayBuffer();
-    return new Uint8Array(ab);
-  }
-
-  if (Platform.OS === "web") {
-    let sonHata = "Dosya okunamadı";
-    for (let deneme = 0; deneme < 4; deneme++) {
-      try {
-        const res = await fetch(uri);
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          return new Uint8Array(ab);
+  if (Platform.OS === "web") return;
+  if (AppState.currentState !== "active") {
+    await new Promise<void>((resolve) => {
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          sub.remove();
+          resolve();
         }
-        sonHata = `HTTP ${res.status}`;
-      } catch (e) {
-        sonHata = e instanceof Error ? e.message : sonHata;
-      }
-      await bekle(200 * (deneme + 1));
-    }
-    throw new Error(`${sonHata}. Tekrar seçin.`);
+      });
+    });
   }
-
-  const hazir = await sohbetEkUriHazirla(uri, ad);
-  let sonHata = "Dosya okunamadı";
-
-  for (let deneme = 0; deneme < 4; deneme++) {
-    try {
-      const base64 = await readAsStringAsync(hazir, { encoding: EncodingType.Base64 });
-      if (base64?.length) return base64Uint8Yap(base64);
-    } catch (e) {
-      sonHata = e instanceof Error ? e.message : sonHata;
-    }
-    await bekle(250 * (deneme + 1));
-  }
-
-  throw new Error(`${sonHata}. Tekrar seçin.`);
+  await bekle(Platform.OS === "ios" ? 450 : 280);
 }
 
 async function oturumTazele(): Promise<string> {
@@ -162,15 +123,34 @@ async function oturumTazele(): Promise<string> {
   return data.session.access_token;
 }
 
+/** React Native: base64 → ArrayBuffer (Supabase önerisi; Blob kullanılmaz) */
+async function nativeDosyaOku(uri: string, ad: string): Promise<ArrayBuffer> {
+  const hazir = await sohbetEkUriHazirla(uri, ad);
+  let sonHata = "Dosya okunamadı";
+
+  for (let deneme = 0; deneme < 5; deneme++) {
+    try {
+      const base64 = await readAsStringAsync(hazir, { encoding: EncodingType.Base64 });
+      if (base64?.length) {
+        const buf = base64ArrayBufferYap(base64);
+        if (buf.byteLength === 0) throw new Error("Dosya boş");
+        return buf;
+      }
+    } catch (e) {
+      sonHata = e instanceof Error ? e.message : sonHata;
+    }
+    await bekle(300 * (deneme + 1));
+  }
+
+  throw new Error(`${sonHata}. Tekrar seçin.`);
+}
+
 async function storageSdkYukle(
   path: string,
-  govde: Blob | Uint8Array,
+  govde: ArrayBuffer | Blob,
   mime: string
 ): Promise<string | null> {
-  const yukleGovde =
-    typeof Blob !== "undefined" && govde instanceof Uint8Array ? bytesToBlob(govde, mime) : govde;
-
-  const { error } = await supabase.storage.from(SOHBET_EK_BUCKET).upload(path, yukleGovde, {
+  const { error } = await supabase.storage.from(SOHBET_EK_BUCKET).upload(path, govde, {
     contentType: mime,
     upsert: false,
     cacheControl: "3600",
@@ -178,18 +158,26 @@ async function storageSdkYukle(
   return error?.message ?? null;
 }
 
-async function storageRestYukle(path: string, govde: Blob, mime: string, token: string): Promise<string | null> {
+/** RN yedek: dosya URI ile multipart (Blob oluşturmadan) */
+async function storageNativeUriYukle(
+  path: string,
+  fileUri: string,
+  ad: string,
+  mime: string,
+  token: string
+): Promise<string | null> {
   if (!SUPABASE_URL.startsWith("http") || !SUPABASE_ANON) {
     return "Sunucu yapılandırması eksik";
   }
 
   const encoded = path.split("/").map((p) => encodeURIComponent(p)).join("/");
   const url = `${SUPABASE_URL}/storage/v1/object/${SOHBET_EK_BUCKET}/${encoded}`;
+  const parca: RnFormDosya = { uri: fileUri, name: ad, type: mime };
 
   try {
     const form = new FormData();
     form.append("cacheControl", "3600");
-    form.append("", govde);
+    form.append("", parca as unknown as Blob);
 
     const res = await fetch(url, {
       method: "POST",
@@ -208,6 +196,90 @@ async function storageRestYukle(path: string, govde: Blob, mime: string, token: 
   }
 }
 
+async function webDosyaOku(taslak: SohbetEkTaslak, ad: string): Promise<Blob> {
+  if (taslak.webDosya && taslak.webDosya.size > 0) return taslak.webDosya;
+
+  let sonHata = "Dosya okunamadı";
+  for (let deneme = 0; deneme < 4; deneme++) {
+    try {
+      const res = await fetch(taslak.uri);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 0) return blob;
+      }
+      sonHata = `HTTP ${res.status}`;
+    } catch (e) {
+      sonHata = e instanceof Error ? e.message : sonHata;
+    }
+    await bekle(250 * (deneme + 1));
+  }
+  throw new Error(`${sonHata}. Tekrar seçin.`);
+}
+
+async function nativeEkiYukle(
+  path: string,
+  taslak: SohbetEkTaslak,
+  ad: string,
+  mime: string
+): Promise<void> {
+  const hazirUri = await sohbetEkUriHazirla(taslak.uri, ad);
+  let sonHata = "Yükleme başarısız";
+
+  for (let deneme = 0; deneme < 5; deneme++) {
+    if (deneme > 0) await bekle(500 * deneme);
+
+    let token: string;
+    try {
+      token = await oturumTazele();
+    } catch (e) {
+      throw e instanceof Error ? e : new Error("Oturum hatası");
+    }
+
+    try {
+      const buf = await nativeDosyaOku(hazirUri, ad);
+      if (buf.byteLength > SOHBET_EK_MAX_BYTES) {
+        throw new Error("Dosya en fazla 10 MB olabilir");
+      }
+      const sdkHata = await storageSdkYukle(path, buf, mime);
+      if (!sdkHata) return;
+      sonHata = sdkHata;
+    } catch (e) {
+      sonHata = e instanceof Error ? e.message : sonHata;
+      if (sonHata.includes("10 MB")) throw e;
+    }
+
+    const uriHata = await storageNativeUriYukle(path, hazirUri, ad, mime, token);
+    if (!uriHata) return;
+    sonHata = uriHata;
+
+    const ag = /network|failed|timeout|fetch|abort|503|502|504|econn/i.test(sonHata);
+    if (!ag && deneme >= 2) break;
+  }
+
+  throw new Error(sonHata);
+}
+
+async function webEkiYukle(path: string, taslak: SohbetEkTaslak, ad: string, mime: string): Promise<void> {
+  const blob = await webDosyaOku(taslak, ad);
+  if (blob.size > SOHBET_EK_MAX_BYTES) throw new Error("Dosya en fazla 10 MB olabilir");
+  if (blob.size === 0) throw new Error("Dosya boş veya okunamadı.");
+
+  let sonHata = "Yükleme başarısız";
+  for (let deneme = 0; deneme < 4; deneme++) {
+    if (deneme > 0) await bekle(400 * deneme);
+    await oturumTazele();
+
+    const sdkHata = await storageSdkYukle(path, blob, mime);
+    if (!sdkHata) return;
+    sonHata = sdkHata;
+
+    const ag = /network|failed|timeout|fetch|abort|503|502|504/i.test(sonHata);
+    if (!ag && deneme >= 1) break;
+  }
+
+  throw new Error(sonHata);
+}
+
 export async function sohbetEkiYukle(
   groupId: string,
   profileId: string,
@@ -223,52 +295,13 @@ export async function sohbetEkiYukle(
   const path = sohbetEkYolu(groupId, profileId, ad);
   const mime = mimeNormalize(taslak.mime, taslak.tur, ad);
 
-  let blob: Blob;
-  if (taslak.webDosya && taslak.webDosya.size > 0) {
-    blob = taslak.webDosya;
+  if (Platform.OS === "web") {
+    await webEkiYukle(path, taslak, ad, mime);
   } else {
-    const bytes = await uriBaytAl(taslak.uri, ad, taslak.webDosya);
-    if (bytes.byteLength > SOHBET_EK_MAX_BYTES) {
-      throw new Error("Dosya en fazla 10 MB olabilir");
-    }
-    if (bytes.byteLength === 0) {
-      throw new Error("Dosya boş veya okunamadı.");
-    }
-    blob = bytesToBlob(bytes, mime);
+    await nativeEkiYukle(path, taslak, ad, mime);
   }
 
-  if (blob.size > SOHBET_EK_MAX_BYTES) {
-    throw new Error("Dosya en fazla 10 MB olabilir");
-  }
-  if (blob.size === 0) {
-    throw new Error("Dosya boş veya okunamadı.");
-  }
-
-  let sonHata = "Yükleme başarısız";
-  for (let deneme = 0; deneme < 4; deneme++) {
-    if (deneme > 0) await bekle(400 * deneme);
-
-    let token: string;
-    try {
-      token = await oturumTazele();
-    } catch (e) {
-      throw e instanceof Error ? e : new Error("Oturum hatası");
-    }
-
-    const sdkHata = await storageSdkYukle(path, blob, mime);
-    if (!sdkHata) return { path, tur: taslak.tur, ad, mime: taslak.mime };
-
-    const restHata = await storageRestYukle(path, blob, mime, token);
-    if (!restHata) return { path, tur: taslak.tur, ad, mime: taslak.mime };
-
-    sonHata = restHata || sdkHata;
-    const ag =
-      /network|failed|timeout|fetch|abort|503|502|504|econn/i.test(sonHata) ||
-      sonHata === "Network request failed";
-    if (!ag && deneme >= 1) break;
-  }
-
-  throw new Error(sonHata);
+  return { path, tur: taslak.tur, ad, mime: taslak.mime };
 }
 
 export async function sohbetEkImzaliUrl(path: string): Promise<string | null> {

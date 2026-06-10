@@ -1,7 +1,7 @@
 import { Alert, Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { type SohbetEkTaslak } from "./groupChatMedia";
+import { sohbetEkUriHazirla, type SohbetEkTaslak } from "./groupChatMedia";
 
 type WebDosya = { uri: string; name: string; mime: string; size?: number; blob: Blob };
 
@@ -12,26 +12,32 @@ function webDosyaSec(accept: string): Promise<WebDosya | null> {
     input.accept = accept;
     input.onchange = () => {
       const file = input.files?.[0];
+      input.value = "";
       if (!file) {
         resolve(null);
         return;
       }
+      const blob =
+        typeof File !== "undefined"
+          ? new File([file], file.name, { type: file.type || "application/octet-stream" })
+          : file;
       resolve({
-        uri: URL.createObjectURL(file),
+        uri: URL.createObjectURL(blob),
         name: file.name,
         mime: file.type || "application/octet-stream",
         size: file.size,
-        blob: file,
+        blob,
       });
     };
     input.click();
   });
 }
 
-function assetToTaslak(a: ImagePicker.ImagePickerAsset): SohbetEkTaslak {
+async function assetToTaslak(a: ImagePicker.ImagePickerAsset): Promise<SohbetEkTaslak> {
   const mime = a.mimeType ?? "image/jpeg";
   const ad = a.fileName ?? `foto-${Date.now()}.jpg`;
-  return { uri: a.uri, tur: "image", ad, mime, boyut: a.fileSize };
+  const uri = await sohbetEkUriHazirla(a.uri, ad);
+  return { uri, tur: "image", ad, mime, boyut: a.fileSize };
 }
 
 async function galeriAc(): Promise<SohbetEkTaslak | null> {
@@ -71,21 +77,33 @@ function fotoKaynakSec(): Promise<"galeri" | "kamera" | null> {
   });
 }
 
+function bekleyenSonucMu(
+  sonuc: ImagePicker.ImagePickerResult | ImagePicker.ImagePickerErrorResult
+): sonuc is ImagePicker.ImagePickerResult {
+  return "canceled" in sonuc;
+}
+
 /** Android: ImagePicker sonrası Activity yeniden başlarsa seçimi kurtarır */
 export async function sohbetBekleyenMedyaAl(): Promise<SohbetEkTaslak | null> {
   if (Platform.OS !== "android") return null;
   try {
     const sonuc = await ImagePicker.getPendingResultAsync();
-    if (!sonuc || sonuc.canceled || !sonuc.assets?.[0]) return null;
+    if (!bekleyenSonucMu(sonuc) || sonuc.canceled || !sonuc.assets?.[0]) return null;
     return assetToTaslak(sonuc.assets[0]);
   } catch {
     return null;
   }
 }
 
-function dosyaTaslakHazir(uri: string, ad: string, mime: string, boyut?: number): SohbetEkTaslak {
+async function dosyaTaslakHazir(
+  uri: string,
+  ad: string,
+  mime: string,
+  boyut?: number
+): Promise<SohbetEkTaslak> {
+  const hazirUri = await sohbetEkUriHazirla(uri, ad);
   return {
-    uri,
+    uri: hazirUri,
     tur: mime.startsWith("image/") ? "image" : "file",
     ad,
     mime,

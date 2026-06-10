@@ -3,7 +3,7 @@
   "minVersion": "1.0.2",
   "releaseNotes": "Acil: Android çökme düzeltmesi. expo-audio tamamen kaldırıldı, OTA devre dışı. Güncelle'ye basın — silmeye gerek yok.",
   "androidApkUrl": "https://vrdy.vercel.app/Vardiyam.apk",
-  "easArtifactUrl": "https://expo.dev/artifacts/eas/PLACEHOLDER.apk",
+  "easArtifactUrl": "https://expo.dev/artifacts/eas/hpwcb7zFQBvxiG3sMnap3A.apk",
   "webUrl": "https://vrdy.vercel.app",
   "zorunlu": true
 }

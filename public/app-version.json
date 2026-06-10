@@ -1,9 +1,9 @@
 {
-  "version": "1.0.2",
-  "minVersion": "1.0.1",
-  "releaseNotes": "Sohbet: galeri/kamera ve dosya seçimi düzeltildi, fotoğraf anında yüklenir, sohbet en alta kayar.",
+  "version": "1.0.3",
+  "minVersion": "1.0.2",
+  "releaseNotes": "Sohbet: ses mesajı kaydı ve oynatma. Medya yükleme iyileştirmeleri (fotoğraf, dosya).",
   "androidApkUrl": "https://vrdy.vercel.app/Vardiyam.apk",
-  "easArtifactUrl": "https://expo.dev/artifacts/eas/pYn2ucuWkRHiXVWj4xLYZ5.apk",
+  "easArtifactUrl": "https://expo.dev/artifacts/eas/nbGVARG4PLFzwoS22CZa7B.apk",
   "webUrl": "https://vrdy.vercel.app",
   "zorunlu": true
 }

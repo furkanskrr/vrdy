@@ -27,8 +27,7 @@ import { ArchiveMonthScreen, type ArchiveStackParamList } from "../screens/Archi
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { DelightHubScreen } from "../screens/DelightHubScreen";
 import { SOHBET_AKTIF } from "../constants/features";
-import { GroupChatScreen } from "../screens/GroupChatScreen";
-import { SohbetYakindaScreen } from "../screens/SohbetYakindaScreen";
+import { SohbetLazyScreen } from "../screens/SohbetLazyScreen";
 import { GizlilikPolitikasiScreen } from "../screens/GizlilikPolitikasiScreen";
 import { KullanimRehberiScreen } from "../screens/KullanimRehberiScreen";
 import { ShiftSwapScreen } from "../screens/ShiftSwapScreen";
@@ -144,7 +143,7 @@ function MainTabs() {
       <Tab.Screen name="Puantaj" component={PuantajScreen} options={{ tabBarLabel: "Puantaj", tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} /> }} />
       <Tab.Screen
         name="Sohbet"
-        component={SOHBET_AKTIF ? GroupChatScreen : SohbetYakindaScreen}
+        component={SohbetLazyScreen}
         options={{
           tabBarLabel: "Sohbet",
           tabBarBadge: sohbetRozet,

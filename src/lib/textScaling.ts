@@ -6,6 +6,12 @@ import { Text, TextInput } from "react-native";
  */
 export function sabitleMetinOlceklendirme(): void {
   const opts = { allowFontScaling: false, maxFontSizeMultiplier: 1 as const };
-  Text.defaultProps = { ...Text.defaultProps, ...opts };
-  TextInput.defaultProps = { ...TextInput.defaultProps, ...opts };
+  try {
+    const textRef = Text as typeof Text & { defaultProps?: Record<string, unknown> };
+    const inputRef = TextInput as typeof TextInput & { defaultProps?: Record<string, unknown> };
+    textRef.defaultProps = { ...(textRef.defaultProps ?? {}), ...opts };
+    inputRef.defaultProps = { ...(inputRef.defaultProps ?? {}), ...opts };
+  } catch {
+    /* React 19+ defaultProps desteklenmeyebilir */
+  }
 }

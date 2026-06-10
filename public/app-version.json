@@ -1,9 +1,9 @@
 {
   "version": "1.0.3",
   "minVersion": "1.0.2",
-  "releaseNotes": "Sohbet: ses mesajı kaydı ve oynatma. Medya yükleme iyileştirmeleri (fotoğraf, dosya).",
+  "releaseNotes": "Android açılış çökmesi düzeltildi. Uygulamayı 1–2 kez kapatıp açmanız yeterli.",
   "androidApkUrl": "https://vrdy.vercel.app/Vardiyam.apk",
   "easArtifactUrl": "https://expo.dev/artifacts/eas/nbGVARG4PLFzwoS22CZa7B.apk",
   "webUrl": "https://vrdy.vercel.app",
-  "zorunlu": true
+  "zorunlu": false
 }

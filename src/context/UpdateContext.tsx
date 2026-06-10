@@ -16,7 +16,7 @@ import {
   type GuncellemeDurumu,
   webSayfasiniYenile,
 } from "../lib/appUpdate";
-import { ApkIndirmeHatasi, androidApkIndirVeKur } from "../lib/androidApkGuncelleme";
+import type { ApkIndirmeIlerleme } from "../lib/androidApkGuncelleme";
 import { UpdateScreen } from "../components/UpdateScreen";
 
 type UpdateContextValue = {
@@ -57,7 +57,8 @@ async function kurulumTemizle(): Promise<void> {
   await AsyncStorage.removeItem(KURULUM_ANAHTAR);
 }
 
-async function expoOtaKontrolVeUygula(): Promise<boolean> {
+/** Yalnızca indirir; reloadAsync açılışta Android'de çökme yapabiliyor (native OTA ile çakışma). */
+async function expoOtaIndir(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   try {
     const Updates = await import("expo-updates");
@@ -65,6 +66,22 @@ async function expoOtaKontrolVeUygula(): Promise<boolean> {
     const sonuc = await Updates.checkForUpdateAsync();
     if (!sonuc.isAvailable) return false;
     await Updates.fetchUpdateAsync();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function expoOtaUygulaVeYenidenYukle(): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  try {
+    const Updates = await import("expo-updates");
+    if (!Updates.isEnabled) return false;
+    const indirildi = await expoOtaIndir();
+    if (!indirildi) {
+      const mevcut = await Updates.checkForUpdateAsync();
+      if (!mevcut.isAvailable) return false;
+    }
     await Updates.reloadAsync();
     return true;
   } catch {
@@ -82,44 +99,51 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const [kurulumSonrasi, setKurulumSonrasi] = useState(false);
   const sonKontrolSurum = useRef<string | null>(null);
 
-  const yenidenKontrol = useCallback(async (): Promise<GuncellemeDurumu> => {
-    setKontrolEdiliyor(true);
-    try {
-      if (Platform.OS !== "web") {
-        setOtaUygulaniyor(true);
-        const otaYapildi = await expoOtaKontrolVeUygula();
-        if (otaYapildi) {
-          await kurulumTemizle();
-          setKurulumSonrasi(false);
-          setDurum({ tur: "guncel" });
-          return { tur: "guncel" };
-        }
-        setOtaUygulaniyor(false);
-      }
-      const yeni = await guncellemeKontrolEt();
-      if (yeni.tur === "guncel") {
-        await kurulumTemizle();
-        setKurulumSonrasi(false);
-      } else if (Platform.OS === "android") {
-        const kayit = await kurulumOku();
-        const ayniSurum = sonKontrolSurum.current === yeni.mevcutSurum;
-        sonKontrolSurum.current = yeni.mevcutSurum;
-        if (
-          kayit &&
-          kayit.hedefSurum === yeni.hedefSurum &&
-          Date.now() - kayit.zaman < 15 * 60 * 1000 &&
-          ayniSurum
-        ) {
-          setKurulumSonrasi(true);
-        }
-      }
-      setDurum(yeni);
-      return yeni;
-    } finally {
-      setKontrolEdiliyor(false);
-      setOtaUygulaniyor(false);
+  const apkKurulumDurumunuGuncelle = useCallback(async (yeni: GuncellemeDurumu) => {
+    if (yeni.tur !== "guncelleme" || Platform.OS !== "android") return;
+    const kayit = await kurulumOku();
+    const ayniSurum = sonKontrolSurum.current === yeni.mevcutSurum;
+    sonKontrolSurum.current = yeni.mevcutSurum;
+    if (
+      kayit &&
+      kayit.hedefSurum === yeni.hedefSurum &&
+      Date.now() - kayit.zaman < 15 * 60 * 1000 &&
+      ayniSurum
+    ) {
+      setKurulumSonrasi(true);
     }
   }, []);
+
+  const yenidenKontrol = useCallback(
+    async (opts?: { otaIndir?: boolean }): Promise<GuncellemeDurumu> => {
+      setKontrolEdiliyor(true);
+      try {
+        const yeni = await guncellemeKontrolEt();
+
+        if (yeni.tur === "guncelleme") {
+          await apkKurulumDurumunuGuncelle(yeni);
+          setDurum(yeni);
+          return yeni;
+        }
+
+        await kurulumTemizle();
+        setKurulumSonrasi(false);
+
+        if (opts?.otaIndir === true && Platform.OS !== "web") {
+          setOtaUygulaniyor(true);
+          await expoOtaIndir();
+          setOtaUygulaniyor(false);
+        }
+
+        setDurum({ tur: "guncel" });
+        return { tur: "guncel" };
+      } finally {
+        setKontrolEdiliyor(false);
+        setOtaUygulaniyor(false);
+      }
+    },
+    [apkKurulumDurumunuGuncelle],
+  );
 
   const guncellemeyiUygula = useCallback(async () => {
     if (durum.tur !== "guncelleme") return;
@@ -135,14 +159,16 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       setIndirmeYuzdesi(0);
       setIndirmeHatasi(null);
       try {
-        await androidApkIndirVeKur(androidApkIndirUrl(config), (ilerleme) => {
+        const apkMod = await import("../lib/androidApkGuncelleme");
+        await apkMod.androidApkIndirVeKur(androidApkIndirUrl(config), (ilerleme: ApkIndirmeIlerleme) => {
           setIndirmeYuzdesi(ilerleme.yuzde);
         });
         await kurulumKaydet(durum.hedefSurum);
         setKurulumSonrasi(true);
       } catch (e) {
+        const apkMod = await import("../lib/androidApkGuncelleme");
         const mesaj =
-          e instanceof ApkIndirmeHatasi
+          e instanceof apkMod.ApkIndirmeHatasi
             ? e.message
             : e instanceof Error
               ? e.message
@@ -160,24 +186,28 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
 
     setOtaUygulaniyor(true);
     try {
-      await expoOtaKontrolVeUygula();
+      await expoOtaUygulaVeYenidenYukle();
     } finally {
       setOtaUygulaniyor(false);
     }
   }, [durum]);
 
   useEffect(() => {
-    void yenidenKontrol();
+    const acilisGecikme = setTimeout(() => {
+      void yenidenKontrol({ otaIndir: false });
+    }, 5000);
+
     let guncellemeZamanlayici: ReturnType<typeof setTimeout> | null = null;
     const sub = AppState.addEventListener("change", (s) => {
       if (s !== "active") return;
       if (guncellemeZamanlayici) clearTimeout(guncellemeZamanlayici);
       guncellemeZamanlayici = setTimeout(() => {
         guncellemeZamanlayici = null;
-        void yenidenKontrol();
+        void yenidenKontrol({ otaIndir: false });
       }, 1500);
     });
     return () => {
+      clearTimeout(acilisGecikme);
       if (guncellemeZamanlayici) clearTimeout(guncellemeZamanlayici);
       sub.remove();
     };

@@ -1,12 +1,17 @@
 import { Platform } from "react-native";
 import { getInfoAsync } from "expo-file-system/legacy";
-import {
-  AudioModule,
-  RecordingPresets,
-  setAudioModeAsync,
-  type AudioRecorder,
-} from "expo-audio";
 import { type SohbetEkTaslak } from "./groupChatMedia";
+
+type NativeSesModulu = typeof import("expo-audio");
+type AudioRecorder = import("expo-audio").AudioRecorder;
+
+let sesModulu: NativeSesModulu | null = null;
+
+async function sesModuluYukle(): Promise<NativeSesModulu> {
+  if (sesModulu) return sesModulu;
+  sesModulu = await import("expo-audio");
+  return sesModulu;
+}
 
 export const SES_KAYIT_MAX_SN = 120;
 
@@ -45,7 +50,8 @@ async function izinAl(): Promise<boolean> {
       return false;
     }
   }
-  const status = await AudioModule.requestRecordingPermissionsAsync();
+  const { requestRecordingPermissionsAsync, setAudioModeAsync } = await sesModuluYukle();
+  const status = await requestRecordingPermissionsAsync();
   if (!status.granted) return false;
   await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
   return true;
@@ -98,6 +104,7 @@ export async function sesKaydiBaslat(): Promise<void> {
     }
   }
 
+  const { AudioModule, RecordingPresets } = await sesModuluYukle();
   recorder = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
   await recorder.prepareToRecordAsync();
   recorder.record();

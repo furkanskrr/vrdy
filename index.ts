@@ -1,8 +1,4 @@
 import { registerRootComponent } from "expo";
-import { sabitleMetinOlceklendirme } from "./src/lib/textScaling";
+import App from "./App";
 
-sabitleMetinOlceklendirme();
-
-import { AppBootstrap } from "./src/components/AppBootstrap";
-
-registerRootComponent(AppBootstrap);
+registerRootComponent(App);

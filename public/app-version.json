@@ -1,9 +1,9 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.5",
   "minVersion": "1.0.2",
-  "releaseNotes": "Android açılış çökmesi düzeltildi. Uygulamayı 1–2 kez kapatıp açmanız yeterli.",
+  "releaseNotes": "Acil düzeltme: Android açılış çökmesi giderildi. Güncelle düğmesine basın — uygulamayı silmenize gerek yok.",
   "androidApkUrl": "https://vrdy.vercel.app/Vardiyam.apk",
-  "easArtifactUrl": "https://expo.dev/artifacts/eas/91Lz9TEUEeHtHPCSH12eo5.apk",
+  "easArtifactUrl": "https://expo.dev/artifacts/eas/PLACEHOLDER.apk",
   "webUrl": "https://vrdy.vercel.app",
-  "zorunlu": false
+  "zorunlu": true
 }

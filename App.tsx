@@ -21,6 +21,7 @@ import { NotificationProvider } from "./src/context/NotificationContext";
 import { DelightProvider } from "./src/context/DelightContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { UpdateProvider } from "./src/context/UpdateContext";
+import { AppErrorBoundary } from "./src/components/AppErrorBoundary";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 
 function ThemedStatusBar() {
@@ -43,27 +44,29 @@ export default function App() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider style={styles.root}>
-        <UiScaleRoot>
-          <DelightProvider>
-            <ThemeProvider>
-              <UpdateProvider>
-                <AuthProvider>
-                  <SohbetOkunmamisProvider>
-                    <ScheduleProvider>
-                      <NotificationProvider>
-                        <AppInner />
-                      </NotificationProvider>
-                    </ScheduleProvider>
-                  </SohbetOkunmamisProvider>
-                </AuthProvider>
-              </UpdateProvider>
-            </ThemeProvider>
-          </DelightProvider>
-        </UiScaleRoot>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider style={styles.root}>
+          <UiScaleRoot>
+            <DelightProvider>
+              <ThemeProvider>
+                <UpdateProvider>
+                  <AuthProvider>
+                    <SohbetOkunmamisProvider>
+                      <ScheduleProvider>
+                        <NotificationProvider>
+                          <AppInner />
+                        </NotificationProvider>
+                      </ScheduleProvider>
+                    </SohbetOkunmamisProvider>
+                  </AuthProvider>
+                </UpdateProvider>
+              </ThemeProvider>
+            </DelightProvider>
+          </UiScaleRoot>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }
 

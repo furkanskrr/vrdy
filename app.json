@@ -3,7 +3,7 @@
     "name": "Vardiyam?",
     "slug": "vrdy",
     "scheme": "vrdy",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -66,19 +66,13 @@
         }
       ],
       "expo-document-picker",
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "Grup sohbetine ses mesajı göndermek için mikrofon erişimi gerekir."
-        }
-      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/9fc1f452-c211-456e-8811-998c888d9c05",
-      "checkAutomatically": "ON_ERROR_RECOVERY"
+      "checkAutomatically": "NEVER"
     },
     "extra": {
       "eas": {

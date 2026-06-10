@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ThemeColors } from "../constants/theme";
+import { SOHBET_SES_AKTIF } from "../constants/features";
 import { RolRozeti } from "../components/RolRozeti";
 import { ChatShortcutsModal } from "../components/ChatShortcutsModal";
 import { GroupChatAttachmentBubble } from "../components/GroupChatAttachmentBubble";
@@ -2092,20 +2093,22 @@ export function GroupChatScreen() {
               color={duzenleHedef || sesKayitAktif ? colors.textMuted : colors.primary}
             />
           </Pressable>
-          <Pressable
-            style={[styles.ekBtn, sesKayitAktif ? styles.sesBtnAktif : null]}
-            onPress={sesKaydiBaslatHandler}
-            disabled={gonderiliyor || !!duzenleHedef || !!bekleyenEk || sesKayitAktif}
-            accessibilityLabel="Ses kaydı"
-          >
-            <Ionicons
-              name="mic-outline"
-              size={22}
-              color={
-                duzenleHedef || bekleyenEk || sesKayitAktif ? colors.textMuted : colors.primary
-              }
-            />
-          </Pressable>
+          {SOHBET_SES_AKTIF ? (
+            <Pressable
+              style={[styles.ekBtn, sesKayitAktif ? styles.sesBtnAktif : null]}
+              onPress={sesKaydiBaslatHandler}
+              disabled={gonderiliyor || !!duzenleHedef || !!bekleyenEk || sesKayitAktif}
+              accessibilityLabel="Ses kaydı"
+            >
+              <Ionicons
+                name="mic-outline"
+                size={22}
+                color={
+                  duzenleHedef || bekleyenEk || sesKayitAktif ? colors.textMuted : colors.primary
+                }
+              />
+            </Pressable>
+          ) : null}
         </View>
         <TextInput
           ref={composerInputRef}

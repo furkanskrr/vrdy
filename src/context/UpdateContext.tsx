@@ -59,7 +59,7 @@ async function kurulumTemizle(): Promise<void> {
 
 /** Yalnızca indirir; reloadAsync açılışta Android'de çökme yapabiliyor (native OTA ile çakışma). */
 async function expoOtaIndir(): Promise<boolean> {
-  if (Platform.OS === "web") return false;
+  if (Platform.OS !== "ios") return false;
   try {
     const Updates = await import("expo-updates");
     if (!Updates.isEnabled) return false;
@@ -194,8 +194,8 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const acilisGecikme = setTimeout(() => {
-      void yenidenKontrol({ otaIndir: false });
-    }, 5000);
+      void yenidenKontrol({ otaIndir: Platform.OS === "ios" });
+    }, Platform.OS === "android" ? 8000 : 5000);
 
     let guncellemeZamanlayici: ReturnType<typeof setTimeout> | null = null;
     const sub = AppState.addEventListener("change", (s) => {

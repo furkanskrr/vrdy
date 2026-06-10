@@ -91,7 +91,7 @@ async function expoOtaUygulaVeYenidenYukle(): Promise<boolean> {
 
 export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const [durum, setDurum] = useState<GuncellemeDurumu>({ tur: "guncel" });
-  const [kontrolEdiliyor, setKontrolEdiliyor] = useState(true);
+  const [kontrolEdiliyor, setKontrolEdiliyor] = useState(Platform.OS !== "android");
   const [otaUygulaniyor, setOtaUygulaniyor] = useState(false);
   const [apkIndiriliyor, setApkIndiriliyor] = useState(false);
   const [indirmeYuzdesi, setIndirmeYuzdesi] = useState(0);
@@ -195,7 +195,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const acilisGecikme = setTimeout(() => {
       void yenidenKontrol({ otaIndir: Platform.OS === "ios" });
-    }, Platform.OS === "android" ? 8000 : 5000);
+    }, Platform.OS === "android" ? 12000 : 5000);
 
     let guncellemeZamanlayici: ReturnType<typeof setTimeout> | null = null;
     const sub = AppState.addEventListener("change", (s) => {

@@ -40,7 +40,10 @@ function AppInner() {
 
 export default function App() {
   useEffect(() => {
-    void configureNotificationChannel();
+    if (Platform.OS === "web") return;
+    const gecikme = Platform.OS === "android" ? 8000 : 0;
+    const t = setTimeout(() => void configureNotificationChannel(), gecikme);
+    return () => clearTimeout(t);
   }, []);
 
   return (

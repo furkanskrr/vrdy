@@ -7,11 +7,13 @@ import { isSupabaseConfigured, supabase } from "./supabase";
 const expoGo =
   Constants.executionEnvironment === "storeClient";
 
-let Notifications: typeof import("expo-notifications") | null = null;
-if (!expoGo) {
+let Notifications: typeof import("expo-notifications") | null | undefined;
+
+function bildirimModulu(): typeof import("expo-notifications") | null {
+  if (expoGo) return null;
+  if (Notifications !== undefined) return Notifications;
   try {
     const mod = require("expo-notifications") as typeof import("expo-notifications");
-    Notifications = mod;
     mod.setNotificationHandler({
       handleNotification: async () => ({
         shouldPlaySound: true,
@@ -20,8 +22,11 @@ if (!expoGo) {
         shouldShowList: true,
       }),
     });
+    Notifications = mod;
+    return mod;
   } catch {
     Notifications = null;
+    return null;
   }
 }
 
@@ -37,6 +42,7 @@ export const PUSH_PROMPT_SKIP_STORAGE_KEY = "vrdy_push_prompt_skip";
 
 /** İlk çağrıda Android kanalını ayarlar (uygulama açılışında isteğe bağlı) */
 export async function configureNotificationChannel(): Promise<void> {
+  const Notifications = bildirimModulu();
   if (!Notifications || Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync("default", {
     name: "Vardiya",
@@ -47,6 +53,7 @@ export async function configureNotificationChannel(): Promise<void> {
 }
 
 async function fetchExpoPushTokenOrNull(): Promise<string | null> {
+  const Notifications = bildirimModulu();
   if (!Notifications) return null;
 
   const extraPid = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
@@ -93,6 +100,7 @@ export function shouldOfferPushEnableInSettings(probe: PushSetupProbe): boolean 
 
 /** Sistem izin penceresini açmadan mevcut durumu ve (izin varsa) token'ı okur */
 export async function probePushSetup(): Promise<PushSetupProbe> {
+  const Notifications = bildirimModulu();
   if (!Notifications || !Device.isDevice) return { available: false };
   await configureNotificationChannel();
   const { status } = await Notifications.getPermissionsAsync();
@@ -106,6 +114,7 @@ export async function probePushSetup(): Promise<PushSetupProbe> {
 
 /** Sistem izin diyaloğunu gösterir; izin verilirse push token döner */
 export async function requestPushPermissionAndFetchToken(): Promise<string | null> {
+  const Notifications = bildirimModulu();
   if (!Notifications || !Device.isDevice) return null;
   await configureNotificationChannel();
   const { status } = await Notifications.requestPermissionsAsync();
